@@ -1,0 +1,26 @@
+{ "name": "pimatic-pilight",
+  "description": "pilight plugin for pimatic",
+  "author": "Oliver Schneider <oliverschneider89+sweetpi@gmail.com> (http://sweetpi.de)",
+  "main": "pilight.coffee",
+  "files": [
+    "pilight.coffee",
+    "actuator-config-shema.coffee",
+    "pilight-config-shema.coffee",
+    "README.md"
+  ],
+  "version": "0.1.0",
+  "homepage": "http://github.com/pimatic/pimatic",
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/pimatic/pimatic.git/node_modules/pimatic-pilight"
+  },
+  "dependencies": {
+  },
+  "peerDependencies": {
+    "pimatic": "~0.1.0"
+  },
+  "engines": {
+    "node": ">0.8.x",
+    "npm": ">1.1.x"
+  }
+}
