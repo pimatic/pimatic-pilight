@@ -1,13 +1,13 @@
-# 
-spawn = require("child_process").spawn
-convict = require "convict"
-net = require "net"
-EverSocket = require("eversocket").EverSocket
-util = require 'util'
-Q = require 'q'
-assert = require 'cassert'
-
 module.exports = (env) ->
+  spawn = require("child_process").spawn
+  util = require 'util'
+
+  convict = env.require "convict"
+  Q = env.require 'q'
+  assert = env.require 'cassert'
+
+  EverSocket = require("eversocket").EverSocket
+
 
   class PilightPlugin extends env.plugins.Plugin
     framework: null
