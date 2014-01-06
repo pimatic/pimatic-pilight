@@ -1,7 +1,7 @@
 pimatic pilight plugin
 ======================
 
-Plugin for the [pilight library](https://github.com/pilight/pilight) to control 433Mhz switches 
+Plugin for the integration of [pilight](https://github.com/pilight/pilight) to control 433Mhz switches 
 and dimmers and get informations from 433Mhz weather stations. See the project page for a list of 
 [supported devices](http://wiki.pilight.org/doku.php/protocols). The pilight-daemon must be running 
 to use this plugin.
