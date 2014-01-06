@@ -125,7 +125,7 @@ module.exports = (env) ->
       return
 
     updateSwitch: (id, jsonMsg) ->
-      actuator = @framework.getActuatorById id
+      actuator = @framework.getDeviceById id
       if actuator?
         state = (if jsonMsg.values.state is 'on' then on else off)
         actuator._setState state
@@ -133,7 +133,7 @@ module.exports = (env) ->
       return
 
     updateSensor: (id, jsonMsg) ->
-      sensor = @framework.getSensorById id
+      sensor = @framework.getDeviceById id
       if sensor?
         sensor.setValues jsonMsg.values
 
@@ -158,7 +158,7 @@ module.exports = (env) ->
       return
 
     actuatorConfigReceive: (id, deviceProbs) ->
-      actuator = @framework.getActuatorById id
+      actuator = @framework.getDeviceById id
       if actuator?
         if actuator instanceof PilightSwitch
           actuator.updateFromPilightConfig deviceProbs
@@ -166,15 +166,15 @@ module.exports = (env) ->
           env.logger.error "actuator should be an PilightSwitch"
       else
         actuator = new PilightSwitch id, deviceProbs
-        @framework.registerActuator actuator
+        @framework.registerDevice actuator
         actuatorConfig = actuator.getActuatorConfig()
-        if @framework.isActuatorInConfig id
-          @framework.updateActuatorConfig actuatorConfig
+        if @framework.isDeviceInConfig id
+          @framework.updateDeviceConfig actuatorConfig
         else
-          @framework.addActuatorToConfig actuatorConfig
+          @framework.addDeviceToConfig actuatorConfig
 
     sensorConfigReceived: (id, deviceProbs) ->
-      sensor = @framework.getSensorById id
+      sensor = @framework.getDeviceById id
       if sensor?
         if sensor instanceof PilightTemperatureSensor
           sensor.updateFromPilightConfig deviceProbs
@@ -182,39 +182,37 @@ module.exports = (env) ->
           env.logger.error "sensor should be an PilightTemperatureSensor"
       else
         sensor = new PilightTemperatureSensor id, deviceProbs
-        @framework.registerSensor sensor
+        @framework.registerDevice sensor
         sensorConfig = sensor.getSensorConfig()
-        if @framework.isSensorInConfig id
-          @framework.updateSensorConfig sensorConfig
+        if @framework.isDeviceInConfig id
+          @framework.updateDeviceConfig sensorConfig
         else
-          @framework.addSensorToConfig sensorConfig
+          @framework.addDeviceToConfig sensorConfig
 
 
-    createActuator: (config) =>
-      if config.class is 'PilightSwitch'
-        @framework.registerActuator new PilightSwitch config.id, deviceProbs =
-          name: config.name
-          location: config.location
-          device: config.device
-          state: if config.lastState is on then 'on' else 'off'
-        return true
-      return false
-
-    createSensor: (config) =>
-      if config.class is 'PilightTemperatureSensor'
-        @framework.registerSensor new PilightTemperatureSensor config.id, deviceProbs =
-          name: config.name
-          location: config.location
-          device: config.device
-          humidity: config.lastHumidity
-          temperature: config.lastTemperature
-          settings: config.settings
-        return true
-      return false
+    createDevice: (config) =>
+      return switch config.class
+        when 'PilightSwitch'
+          @framework.registerDevice new PilightSwitch config.id, deviceProbs =
+            name: config.name
+            location: config.location
+            device: config.device
+            state: if config.lastState is on then 'on' else 'off'
+          true
+        when 'PilightTemperatureSensor'
+          @framework.registerDevice new PilightTemperatureSensor config.id, deviceProbs =
+            name: config.name
+            location: config.location
+            device: config.device
+            humidity: config.lastHumidity
+            temperature: config.lastTemperature
+            settings: config.settings
+          true
+        else false
 
   plugin = new PilightPlugin
 
-  class PilightSwitch extends env.actuators.PowerSwitch
+  class PilightSwitch extends env.devices.PowerSwitch
     probs: null
 
     constructor: (@id, @probs) ->
@@ -242,8 +240,8 @@ module.exports = (env) ->
     _setState: (state) ->
       if state is @state then return
       super state
-      if plugin.framework.isActuatorInConfig @id
-        plugin.framework.updateActuatorConfig @getActuatorConfig()
+      if plugin.framework.isDeviceInConfig @id
+        plugin.framework.updateDeviceConfig @getActuatorConfig()
 
     getActuatorConfig: () ->
       return config =
@@ -255,7 +253,7 @@ module.exports = (env) ->
         device: @probs.device
         lastState: @_state
 
-  class PilightTemperatureSensor extends env.sensors.TemperatureSensor
+  class PilightTemperatureSensor extends env.devices.TemperatureSensor
     name: null
     temperature: null
     humidity: null
@@ -276,8 +274,8 @@ module.exports = (env) ->
       if values.humidity?
         @humidity = values.humidity/(@probs.settings.decimals*10)
         @emit "humidity", @humidity
-      if plugin.framework.isSensorInConfig @id
-        plugin.framework.updateSensorConfig @getSensorConfig()
+      if plugin.framework.isDeviceInConfig @id
+        plugin.framework.updateDeviceConfig @getSensorConfig()
       return
 
     getSensorConfig: () ->

@@ -81,33 +81,33 @@ module.exports = (env) ->
             "2.0"
           ]
 
-        getActuatorByIdCalled = false
-        framework.getActuatorById = (id) ->
+        getDeviceByIdCalled = false
+        framework.getDeviceById = (id) ->
           assert id is "pilight-living-bookshelve"
-          getActuatorByIdCalled = true
+          getDeviceByIdCalled = true
           return null
 
-        registerActuatorCalled = false
-        framework.registerActuator = (a) ->
-          registerActuatorCalled = true
+        registerDeviceCalled = false
+        framework.registerDevice = (a) ->
+          registerDeviceCalled = true
           assert a?
           actuator = a
 
-        addActuatorToConfigCalled = false
-        framework.addActuatorToConfig = (config) ->
+        addDeviceToConfigCalled = false
+        framework.addDeviceToConfig = (config) ->
           assert config?
-          addActuatorToConfigCalled = true
+          addDeviceToConfigCalled = true
 
-        framework.isActuatorInConfig = -> false
-        framework.updateActuatorConfig = (config) -> 
+        framework.isDeviceInConfig = -> false
+        framework.updateDeviceConfig = (config) -> 
           assert config.id is "pilight-living-bookshelve"
           assert config.class is "PilightSwitch"
 
         pilightPlugin.client.emit 'data', JSON.stringify(sampleConfigMsg) + '\n'
 
-        assert getActuatorByIdCalled
-        assert registerActuatorCalled
-        assert addActuatorToConfigCalled
+        assert getDeviceByIdCalled
+        assert registerDeviceCalled
+        assert addDeviceToConfigCalled
         assert actuator?
 
     describe "#turnOn()", ->
@@ -115,7 +115,7 @@ module.exports = (env) ->
       it "should send turnOn", (finish)->
         this.timeout 1000
 
-        framework.getActuatorById = (id) ->
+        framework.getDeviceById = (id) ->
           assert id is actuator.id
           return actuator
 
