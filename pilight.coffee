@@ -217,6 +217,7 @@ module.exports = (env) ->
 
     constructor: (@id, @probs) ->
       @updateFromPilightConfig(probs)
+      super()
 
     # Run the pilight-send executable.
     changeStateTo: (state) ->
@@ -261,9 +262,10 @@ module.exports = (env) ->
       @updateFromPilightConfig probs
       if probs.humidity
         @attributes.humidity =
-          desciption: "the messured humidity"
+          description: "the messured humidity"
           type: Number
           unit: '%'
+      super()
 
     updateFromPilightConfig: (@probs) ->
       @name = probs.name
