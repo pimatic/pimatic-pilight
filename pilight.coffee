@@ -254,12 +254,16 @@ module.exports = (env) ->
         lastState: @_state
 
   class PilightTemperatureSensor extends env.devices.TemperatureSensor
-    name: null
     temperature: null
     humidity: null
 
     constructor: (@id, @probs) ->
       @updateFromPilightConfig probs
+      if probs.humidity
+        @properties.humidity =
+          desciption: "the messured humidity"
+          type: Number
+          unit: '%'
 
     updateFromPilightConfig: (@probs) ->
       @name = probs.name
@@ -290,31 +294,7 @@ module.exports = (env) ->
         lastHumidity: @probs.humidity
         settings: @probs.settings
 
-    getSensorValuesNames: ->
-      names = []
-      if @probs.settings.temperature is 1
-        names.push 'temperature' 
-      if @probs.settings.humidity is 1
-        names.push 'humidity' 
-      return names
-
-    getSensorValue: (name) ->
-      Q.fcall => 
-        switch name
-          when 'temperature' then return @temperature
-          when 'humidity' then return @humidity
-        throw new Error "Unknown sensor value name"
-
-    canDecide: (predicate) ->
-      return no
-
-    isTrue: (id, predicate) ->
-      throw new Error("no predicate implemented")
-
-    notifyWhen: (id, predicate, callback) ->
-      throw new Error("no predicates implemented")
-
-    cancelNotify: (id) ->
-      throw new Error("no predicates implemented")
+    getTemperature: -> Q(@temperature)
+    getHumidity: -> Q(@humidity)
 
   return plugin
