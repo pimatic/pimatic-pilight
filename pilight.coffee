@@ -260,7 +260,7 @@ module.exports = (env) ->
     constructor: (@id, @probs) ->
       @updateFromPilightConfig probs
       if probs.humidity
-        @properties.humidity =
+        @attributes.humidity =
           desciption: "the messured humidity"
           type: Number
           unit: '%'
