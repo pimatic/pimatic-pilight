@@ -97,7 +97,6 @@ module.exports = (env) ->
               id = "pilight-#{location}-#{device}"
               deviceProbs.location = location
               deviceProbs.device = device
-              console.log id, deviceProbs
               @handleDeviceInConfig(id, deviceProbs)
         return
 
@@ -171,6 +170,9 @@ module.exports = (env) ->
         when 'PilightSwitch'
           @framework.registerDevice new PilightSwitch config
           true
+        when 'PilightDimmer'
+          @framework.registerDevice new PilightDimmer config, 
+          true
         when 'PilightTemperatureSensor'
           @framework.registerDevice new PilightTemperatureSensor config, 
           true
@@ -195,7 +197,7 @@ module.exports = (env) ->
       super()
       plugin.on "update #{@id}", (msg) =>
         unless msg.values?.state?
-          env.logger.error "wrong message from piligt daemon received: #{msg}"
+          env.logger.error "wrong message from piligt daemon received:", msg
           return
         assert msg.values.state is 'on' or msg.values.state is 'off'
         state = (if msg.values.state is 'on' then on else off)
@@ -240,9 +242,11 @@ module.exports = (env) ->
         @_dimlevel= config.lastDimlevel
       super()
       plugin.on "update #{@id}", (msg) =>
-        unless msg.values?.dimlevel?
-          env.logger.error "wrong message from piligt daemon received: #{msg}"
+        unless msg.values?.dimlevel? or msg.values?.state?
+          env.logger.error "wrong message from piligt daemon received:", msg
           return
+        unless msg.values.dimlevel? 
+          msg.values.dimlevel = (if msg.values.state is 'on' then 100 else 0)
         dimlevel = msg.values.dimlevel
         @_setDimlevel dimlevel
 
@@ -300,7 +304,7 @@ module.exports = (env) ->
       super()
       plugin.on "update #{@id}", (msg) =>
         unless msg.values?
-          env.logger.error "wrong message from piligt daemon received: #{msg}"
+          env.logger.error "wrong message from piligt daemon received:", msg
           return
         @setValues msg.values
 
