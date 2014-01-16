@@ -109,38 +109,37 @@ module.exports = (env) ->
         return
 
     handleDeviceInConfig: (id, deviceProbs) =>
+      getClassFromType = (type) =>
+        switch type
+          when 1 then [PilightSwitch, "PilightSwitch"]
+          when 2 then [PilightDimmer, "PilightDimmer"]
+          when 3 then [PilightTemperatureSensor, "PilightTemperatureSensor"]
+          else [null, null]
 
-        getClassFromType = (type) =>
-          switch type
-            when 1 then [PilightSwitch, "PilightSwitch"]
-            when 2 then [PilightDimmer, "PilightDimmer"]
-            when 3 then [PilightTemperatureSensor, "PilightTemperatureSensor"]
-            else [null, null]
-
-        [Class, ClassName] = getClassFromType deviceProbs.type
-        unless Class?
-          env.logger.warn "Unimplemented pilight device type: #{deviceProbs.type}" 
+      [Class, ClassName] = getClassFromType deviceProbs.type
+      unless Class?
+        env.logger.warn "Unimplemented pilight device type: #{deviceProbs.type}" 
+        return
+      actuator = @framework.getDeviceById id
+      if actuator?
+        unless actuator instanceof Class
+          env.logger.error "expected #{id} to be an #{Class}"
           return
-        actuator = @framework.getDeviceById id
-        if actuator?
-          unless actuator instanceof Class
-            env.logger.error "expected #{id} to be an #{Class}"
-            return
-        else 
-          config = 
-            id: id
-            name: deviceProbs.name
-            class: ClassName
-            inPilightConfig: true
-            location: deviceProbs.location
-            device: deviceProbs.device
-            settings: {}
-          if deviceProbs.humidity then config.settings.humidity = 1
-          if deviceProbs.temperature then config.settings.temperature = 1
-          actuator = new Class config
-          @framework.registerDevice actuator
-          @framework.addDeviceToConfig config
-        actuator.updateFromPilightConfig deviceProbs
+      else 
+        config = 
+          id: id
+          name: deviceProbs.name
+          class: ClassName
+          inPilightConfig: true
+          location: deviceProbs.location
+          device: deviceProbs.device
+          settings: {}
+        if deviceProbs.humidity then config.settings.humidity = 1
+        if deviceProbs.temperature then config.settings.temperature = 1
+        actuator = new Class config
+        @framework.registerDevice actuator
+        @framework.addDeviceToConfig config
+      actuator.updateFromPilightConfig deviceProbs
 
 
     sendState: (id, jsonMsg) ->
