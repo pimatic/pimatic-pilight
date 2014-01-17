@@ -293,7 +293,7 @@ module.exports = (env) ->
       if @config.lastTemperature?
         @temperature = @config.lastTemperature
       if @config.lastHumidity?
-        @temperature = @config.lastHumidity
+        @humidity = @config.lastHumidity
 
       if @config.settings.humidity
         @attributes.humidity =
