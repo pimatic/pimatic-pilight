@@ -1,6 +1,7 @@
 module.exports = (env) ->
   spawn = require("child_process").spawn
   util = require 'util'
+  ssdp = require("node-ssdp")
 
   convict = env.require "convict"
   Q = env.require 'q'
@@ -78,11 +79,37 @@ module.exports = (env) ->
         reconnectOnTimeout: true
         debug: @config.debug
       )
+      client = @client
       
-      @client.connect(
-        @config.port,
-        @config.host
-      )
+      if @config.ssdp
+        ssdp_client = new ssdp(log: true, logLevel: "trace")
+
+        ssdp_client.on "advertise-alive", inAdvertisement = (headers) ->
+          #we got an ssdp notify
+          env.logger.debug "SSDP notify: Location = #{headers['LOCATION']} SERVER = #{headers['SERVER']}"
+          search_result = headers['LOCATION'].split ":"
+          host_value = search_result[0]
+          port_value = search_result[1]
+
+          if !isNaN(port_value)
+            env.logger.debug "Trying to connect to: #{host_value}:#{port_value}"
+            client.connect(
+              port_value,
+              host_value
+            )
+          else
+            env.logger.error "received port is not a number"
+
+        #searching for pilight ssdp
+        env.logger.debug "Trying to find pilight via SSDP"
+        ssdp_client.search "urn:schemas-upnp-org:service:pilight:1"
+
+      else
+        #not using ssdp, connectin normally
+        @client.connect(
+          @config.port,
+          @config.host
+        )
 
       @client.on "config", onReceiveConfig = (json) =>
         config = json.config
