@@ -170,10 +170,10 @@ module.exports = (env) ->
           @framework.registerDevice new PilightSwitch config
           true
         when 'PilightDimmer'
-          @framework.registerDevice new PilightDimmer config, 
+          @framework.registerDevice new PilightDimmer config
           true
         when 'PilightTemperatureSensor'
-          @framework.registerDevice new PilightTemperatureSensor config, 
+          @framework.registerDevice new PilightTemperatureSensor config
           true
         else false
 
