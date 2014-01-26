@@ -5,7 +5,7 @@
   "main": "pilight.coffee",
   "files": [
     "pilight.coffee",
-    "pilight-config-shema.coffee",
+    "pilight-config-schema.coffee",
     "README.md"
   ],
   "version": "0.5.0",

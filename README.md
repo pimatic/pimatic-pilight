@@ -15,6 +15,6 @@ You can load the backend by editing your `config.json` to include:
     }
 
 in the `plugins` section. For all configuration options see 
-[pilight-config-shema](pilight-config-shema.html)
+[pilight-config-schema](pilight-config-schema.html)
 
 Devices are automatically added from the pilight-daemon config, when the connection is established. 
