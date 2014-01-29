@@ -245,8 +245,9 @@ module.exports = (env) ->
           env.logger.error "wrong message from piligt daemon received:", msg
           return
         unless msg.values.dimlevel? 
-          msg.values.dimlevel = (if msg.values.state is 'on' then 100 else 0)
-        dimlevel = msg.values.dimlevel
+          #msg.values.dimlevel = (if msg.values.state is 'on' then 100 else 0)
+          return
+        dimlevel = @_normalizePilightDimlevel(msg.values.dimlevel)
         @_setDimlevel dimlevel
 
     # Run the pilight-send executable.
@@ -254,30 +255,60 @@ module.exports = (env) ->
       assert not isNaN(dimlevel) 
       dimLevel = parseFloat(dimLevel)
       if @_dimlevel is dimlevel then return Q()
+
+      implizitState = (if dimlevel > 0 then "on" else "off")
+
       jsonMsg =
         message: "send"
         code:
           location: @config.location
           device: @config.device
-          state: (if dimlevel > 0 then "on" else "off")
-        values: 
-          dimlevel: dimlevel.toString()
+          values: 
+            dimlevel: @_toPilightDimlevel(dimlevel).toString()
+      result1 = plugin.sendState @id, jsonMsg
 
-      return plugin.sendState @id, jsonMsg
+      if implizitState isnt @_state
+        jsonMsg =
+          message: "send"
+          code:
+            location: @config.location
+            device: @config.device
+            state: implizitState
+        result2 = plugin.sendState @id, jsonMsg
 
+      return if result2? then Q.all([result1, result2]) else result1
     updateFromPilightConfig: (probs) ->
       assert probs?
       assert probs.dimlevel?
       assert not isNaN(probs.dimlevel)  
       probs.dimlevel = parseFloat(probs.dimlevel)
+      @probs = probs
       @name = probs.name
-      @_setDimlevel probs.dimlevel
+      @_setDimlevel @_normalizePilightDimlevel(probs.dimlevel)
 
     _setDimlevel: (dimlevel) ->
       if dimlevel is @_dimlevel then return
       super dimlevel
       @config.lastDimlevel = dimlevel
       plugin.framework.saveConfig()
+
+    _normalizePilightDimlevel: (dimlevel) ->
+      max = @probs?.settings?.max
+      # if not set assume max dimlevel is 15
+      unless max? then max = 15
+      max = parseInt(max, 10)
+      # map it to 0...100
+      ndimlevel = 100.0/15.0 * dimlevel
+      # and round to nearest 0, 5, 10,...
+      remainder = ndimlevel % 5
+      ndimlevel = Math.floor(ndimlevel / 5)*5 + (if remainder >= 2.5 then 5 else 0)
+      return ndimlevel
+
+    _toPilightDimlevel: (dimlevel) ->
+      dimlevel = Math.round(dimlevel / 100.0 * 15.0)
+      return dimlevel
+
+
 
   class PilightTemperatureSensor extends env.devices.TemperatureSensor
     temperature: null
