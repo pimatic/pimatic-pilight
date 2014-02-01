@@ -27,9 +27,17 @@ module.exports = (env) ->
           if msg.length isnt 0
             @onReceive JSON.parse msg
 
+      lastError = null
+
       @on "error", (err) =>
+        if err.message? and lastError? and err.message is lastError.message
+          if @debug
+            env.logger.debug "supressed repeated error #{err}"
+            env.logger.debug err.stack
+          return
         env.logger.error "Error on connection to pilight-daemon: #{err}"
         env.logger.debug err.stack
+        lastError = err
 
     sendWelcome: ->
       @state = "welcome"
