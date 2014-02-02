@@ -12,7 +12,9 @@ module.exports = (env) ->
           @connectCalled = true
           assert host?
           assert port? and not isNaN port
+        setReconnectOnTimeout: ->
       )
+    env.SSDP = {}
 
     pilightPlugin = require('pimatic-pilight') env
 

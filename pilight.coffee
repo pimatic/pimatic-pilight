@@ -1,13 +1,13 @@
 module.exports = (env) ->
   spawn = require("child_process").spawn
   util = require 'util'
-  ssdp = require("node-ssdp")
 
   convict = env.require "convict"
   Q = env.require 'q'
   assert = env.require 'cassert'
 
   EverSocket = env.EverSocket or require("eversocket").EverSocket
+  SSDP = env.SSDP or require("node-ssdp")
 
   class PilightClient extends EverSocket
 
@@ -88,7 +88,7 @@ module.exports = (env) ->
       )
       
       if @config.ssdp
-        ssdpClient = new ssdp(log: true, logLevel: "error")
+        ssdpClient = new SSDP(log: true, logLevel: "error")
         ssdpPilightFound = false
 
         ssdpClient.on "advertise-alive", inAdvertisement = (headers) =>
@@ -96,13 +96,17 @@ module.exports = (env) ->
           if ssdpPilightFound
             env.logger.debug "got another ssdp notify after we already found pilight"
             return
-          env.logger.debug "SSDP notify: Location = #{headers['LOCATION']} SERVER = #{headers['SERVER']}"
+          env.logger.debug(
+            "SSDP notify: Location = #{headers['LOCATION']} SERVER = #{headers['SERVER']}"
+          )
           searchResult = headers['LOCATION'].split ":"
           hostValue = searchResult[0]
           portValue = parseInt searchResult[1]
 
           if portValue != 0
-            env.logger.info "pilight: found pilight server #{hostValue}:#{portValue}, trying to connect"
+            env.logger.info (
+              "pilight: found pilight server #{hostValue}:#{portValue}, trying to connect"
+            )
             @client.connect(
               portValue,
               hostValue
