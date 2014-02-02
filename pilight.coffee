@@ -78,8 +78,6 @@ module.exports = (env) ->
         timeout: @config.timeout
         debug: @config.debug
       )
-
-      env.logger.debug "@config.timeout#{@config.timeout}"
       
       if @config.ssdp
         ssdpClient = new ssdp(log: true, logLevel: "trace")
