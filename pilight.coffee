@@ -1,6 +1,7 @@
 module.exports = (env) ->
   spawn = require("child_process").spawn
   util = require 'util'
+  ssdp = require("node-ssdp")
 
   convict = env.require "convict"
   Q = env.require 'q'
@@ -83,14 +84,53 @@ module.exports = (env) ->
       @client = new PilightClient(
         reconnectWait: 3000
         timeout: @config.timeout
-        reconnectOnTimeout: true
         debug: @config.debug
       )
       
-      @client.connect(
-        @config.port,
-        @config.host
-      )
+      if @config.ssdp
+        ssdpClient = new ssdp(log: true, logLevel: "error")
+        ssdpPilightFound = false
+
+        ssdpClient.on "advertise-alive", inAdvertisement = (headers) =>
+          #we got an ssdp notify
+          if ssdpPilightFound
+            env.logger.debug "got another ssdp notify after we already found pilight"
+            return
+          env.logger.debug "SSDP notify: Location = #{headers['LOCATION']} SERVER = #{headers['SERVER']}"
+          searchResult = headers['LOCATION'].split ":"
+          hostValue = searchResult[0]
+          portValue = parseInt searchResult[1]
+
+          if portValue != 0
+            env.logger.info "pilight: found pilight server #{hostValue}:#{portValue}, trying to connect"
+            @client.connect(
+              portValue,
+              hostValue
+            )
+            @client.setReconnectOnTimeout true
+            ssdpPilightFound = true
+          else
+            env.logger.error "received port is not a number"
+
+        searchSSDP = () =>
+          if ssdpPilightFound is not true
+            #searching for pilight ssdp
+            env.logger.info "pilight: trying to find pilight via SSDP"
+            ssdpClient.search "urn:schemas-upnp-org:service:pilight:1"
+            #try searching again in 1s
+            setTimeout(searchSSDP,5000)
+          else
+            env.logger.debug "pilight: skipping ssdp, already found pilight"
+
+        searchSSDP()
+
+      else
+        #not using ssdp, connectin normally
+        @client.connect(
+          @config.port,
+          @config.host
+        )
+        @client.setReconnectOnTimeout true
 
       @client.on "config", onReceiveConfig = (json) =>
         config = json.config

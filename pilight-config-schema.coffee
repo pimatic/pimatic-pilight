@@ -18,3 +18,7 @@ module.exports =
     doc: "print out debug info with debug log level"
     format: Boolean
     default: false
+  ssdp:
+    doc:"enable ssdp"
+    format: Boolean
+    default: false
