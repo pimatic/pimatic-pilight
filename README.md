@@ -18,3 +18,14 @@ in the `plugins` section. For all configuration options see
 [pilight-config-schema](pilight-config-schema.html)
 
 Devices are automatically added from the pilight-daemon config, when the connection is established. 
+
+If you are using the development version of pilight turn [ssdp](http://en.wikipedia.org/wiki/Simple_Service_Discovery_Protocol) on to auto detect ip and port:
+
+    { 
+       "plugin": "pilight",
+       "ssdp": true
+    }
+
+Contributors
+----------
+Thanks to [thexperiments](https://github.com/thexperiments) for adding SSDP support.
