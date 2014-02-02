@@ -78,13 +78,18 @@ module.exports = (env) ->
         timeout: @config.timeout
         debug: @config.debug
       )
+
+      env.logger.debug "@config.timeout#{@config.timeout}"
       
       if @config.ssdp
-        ssdpClient = new ssdp()
+        ssdpClient = new ssdp(log: true, logLevel: "trace")
         ssdpPilightFound = false
 
         ssdpClient.on "advertise-alive", inAdvertisement = (headers) =>
           #we got an ssdp notify
+          if ssdpPilightFound
+            env.logger.debug "got another ssdp notify after we already found pilight"
+            return
           env.logger.debug "SSDP notify: Location = #{headers['LOCATION']} SERVER = #{headers['SERVER']}"
           searchResult = headers['LOCATION'].split ":"
           hostValue = searchResult[0]
@@ -96,7 +101,7 @@ module.exports = (env) ->
               portValue,
               hostValue
             )
-            @client.reconnectOnTimeout true
+            @client.setReconnectOnTimeout true
             ssdpPilightFound = true
           else
             env.logger.error "received port is not a number"
@@ -119,7 +124,7 @@ module.exports = (env) ->
           @config.port,
           @config.host
         )
-        @client.reconnectOnTimeout true
+        @client.setReconnectOnTimeout true
 
       @client.on "config", onReceiveConfig = (json) =>
         config = json.config
