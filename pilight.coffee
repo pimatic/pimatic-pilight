@@ -76,32 +76,47 @@ module.exports = (env) ->
       @client = new PilightClient(
         reconnectWait: 3000
         timeout: @config.timeout
-        reconnectOnTimeout: true
         debug: @config.debug
       )
+
+      env.logger.debug "@config.timeout#{@config.timeout}"
       
       if @config.ssdp
-        ssdp_client = new ssdp()
+        ssdpClient = new ssdp(log: true, logLevel: "trace")
+        ssdpPilightFound = false
 
-        ssdp_client.on "advertise-alive", inAdvertisement = (headers) =>
+        ssdpClient.on "advertise-alive", inAdvertisement = (headers) =>
           #we got an ssdp notify
+          if ssdpPilightFound
+            env.logger.debug "got another ssdp notify after we already found pilight"
+            return
           env.logger.debug "SSDP notify: Location = #{headers['LOCATION']} SERVER = #{headers['SERVER']}"
-          search_result = headers['LOCATION'].split ":"
-          host_value = search_result[0]
-          port_value = parseInt search_result[1]
+          searchResult = headers['LOCATION'].split ":"
+          hostValue = searchResult[0]
+          portValue = parseInt searchResult[1]
 
-          if port_value != 0
-            env.logger.info "pilight: found pilight server #{host_value}:#{port_value}, trying to connect"
+          if portValue != 0
+            env.logger.info "pilight: found pilight server #{hostValue}:#{portValue}, trying to connect"
             @client.connect(
-              port_value,
-              host_value
+              portValue,
+              hostValue
             )
+            @client.setReconnectOnTimeout true
+            ssdpPilightFound = true
           else
             env.logger.error "received port is not a number"
 
-        #searching for pilight ssdp
-        env.logger.debug "Trying to find pilight via SSDP"
-        ssdp_client.search "urn:schemas-upnp-org:service:pilight:1"
+        searchSSDP = () =>
+          if ssdpPilightFound is not true
+            #searching for pilight ssdp
+            env.logger.info "pilight: trying to find pilight via SSDP"
+            ssdpClient.search "urn:schemas-upnp-org:service:pilight:1"
+            #try searching again in 1s
+            setTimeout(searchSSDP,5000)
+          else
+            env.logger.debug "pilight: skipping ssdp, already found pilight"
+
+        searchSSDP()
 
       else
         #not using ssdp, connectin normally
@@ -109,6 +124,7 @@ module.exports = (env) ->
           @config.port,
           @config.host
         )
+        @client.setReconnectOnTimeout true
 
       @client.on "config", onReceiveConfig = (json) =>
         config = json.config
