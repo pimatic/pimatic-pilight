@@ -80,7 +80,7 @@ module.exports = (env) ->
       )
       
       if @config.ssdp
-        ssdpClient = new ssdp(log: true, logLevel: "trace")
+        ssdpClient = new ssdp(log: true, logLevel: "error")
         ssdpPilightFound = false
 
         ssdpClient.on "advertise-alive", inAdvertisement = (headers) =>
