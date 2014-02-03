@@ -397,8 +397,6 @@ module.exports = (env) ->
       upperName = name.substr(0,1).toUpperCase() + name.substring(1)
       lastTime = @["_last#{upperName}Time"]
       lastValue = @["_last#{upperName}Value"]
-      # console.log "last:", lastTime, lastValue
-      # console.log "min#{upperName}", "max#{upperName}"
       unless plugin.config["min#{upperName}"] <= value <= plugin.config["max#{upperName}"]
         isValid = no
         env.logger.info "discarding out of range #{name} from pilight: #{value}"
@@ -406,7 +404,7 @@ module.exports = (env) ->
         deltaTime = (currentTime - lastTime)/1000.0
         deltaValue = value - lastValue
         delta = Math.abs(deltaValue/deltaTime)
-        env.logger.debug "temp delta is #{delta}"
+        env.logger.debug "#{name} delta is #{delta}" if plugin.debug
         if delta > plugin.config["max#{upperName}Delta"]
           isValid = no
           env.logger.info "discarding #{name} above max delta from pilight: #{value}"
