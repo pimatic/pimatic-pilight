@@ -69,11 +69,6 @@ module.exports = (env) ->
       return
 
   class PilightPlugin extends env.plugins.Plugin
-    framework: null
-    config: null
-    state: "unconnected"
-    pilightConfig: null
-    client: null
 
     init: (@app, @framework, @config) =>
       conf = convict require("./pilight-config-schema")
@@ -397,17 +392,47 @@ module.exports = (env) ->
         temperature: probs.temperature
         humidity: probs.humidity
 
+    checkValue: (name, currentTime, value) ->
+      isValid = yes
+      upperName = name.substr(0,1).toUpperCase() + name.substring(1)
+      lastTime = @["_last#{upperName}Time"]
+      lastValue = @["_last#{upperName}Value"]
+      # console.log "last:", lastTime, lastValue
+      # console.log "min#{upperName}", "max#{upperName}"
+      unless plugin.config["min#{upperName}"] <= value <= plugin.config["max#{upperName}"]
+        isValid = no
+        env.logger.info "discarding out of range #{name} from pilight: #{value}"
+      else if lastTime?
+        deltaTime = (currentTime - lastTime)/1000.0
+        deltaValue = value - lastValue
+        delta = Math.abs(deltaValue/deltaTime)
+        env.logger.debug "temp delta is #{delta}"
+        if delta > plugin.config["max#{upperName}Delta"]
+          isValid = no
+          env.logger.info "discarding #{name} above max delta from pilight: #{value}"
+      if isValid
+        @["_last#{upperName}Time"] = currentTime
+        @["_last#{upperName}Value"] = value
+      return isValid
+
+
     setValues: (values) ->
       assert not isNaN(@config.settings.decimals)
+      currentTime = (new Date()).getTime()
       if values.temperature?
-        @temperature = values.temperature/Math.pow(10, @config.settings.decimals)
-        @emit "temperature", @temperature
-        @config.lastTemperature = @temperature
-
+        temperature = values.temperature/Math.pow(10, @config.settings.decimals)
+        isValid = @checkValue("temperature", currentTime, temperature)
+        if isValid
+          @temperature = temperature
+          @emit "temperature", temperature
+          @config.lastTemperature = temperature
       if values.humidity?
-        @humidity = values.humidity/Math.pow(10, @config.settings.decimals)
-        @emit "humidity", @humidity
-        @config.lastHumidity = @humidity
+        humidity = values.humidity/Math.pow(10, @config.settings.decimals)
+        isValid = @checkValue("humidity", currentTime, humidity)
+        if isValid
+          @humidity = humidity
+          @emit "humidity", humidity
+          @config.lastHumidity = humidity
       plugin.framework.saveConfig()
       return
 
