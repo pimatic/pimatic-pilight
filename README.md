@@ -19,7 +19,7 @@ in the `plugins` section. For all configuration options see
 
 Devices are automatically added from the pilight-daemon config, when the connection is established. 
 
-If you are using the development version of pilight turn [ssdp](http://en.wikipedia.org/wiki/Simple_Service_Discovery_Protocol) on to auto detect ip and port:
+If you are using pilight 3.0 or later turn [ssdp](http://en.wikipedia.org/wiki/Simple_Service_Discovery_Protocol) on to auto detect ip and port:
 
     { 
        "plugin": "pilight",
