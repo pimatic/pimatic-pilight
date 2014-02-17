@@ -24,9 +24,10 @@ module.exports = (env) ->
         @sendWelcome()
 
       @on "data", (data) =>
-        for msg in data.toString().split "\n"
-          if msg.length isnt 0
-            @onReceive JSON.parse msg
+        msg = data.toString()
+        if msg[msg.length-2] is "\n" or msg[msg.length-1] is "\n"
+          msg = msg[..-2]
+          @onReceive JSON.parse msg
 
       lastError = null
 
