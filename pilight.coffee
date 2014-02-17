@@ -11,10 +11,13 @@ module.exports = (env) ->
 
   class PilightClient extends EverSocket
 
+    buffer: ''
+
     constructor: (options) ->
       @debug = options.debug
       delete options.debug
       super(options)
+
 
       @on "end", =>
         @state = "unconnected"
@@ -24,10 +27,13 @@ module.exports = (env) ->
         @sendWelcome()
 
       @on "data", (data) =>
-        msg = data.toString()
-        if msg[msg.length-2] is "\n" or msg[msg.length-1] is "\n"
-          msg = msg[..-2]
-          @onReceive JSON.parse msg
+        @buffer += data.toString()
+        if @buffer[@buffer.length-2] is "\n" or @buffer[@buffer.length-1] is "\n"
+          messages = @buffer[..-2]
+          for msg in messages.split "\n"
+            if msg.length isnt 0
+              @onReceive JSON.parse msg
+          @buffer = ''
 
       lastError = null
 
