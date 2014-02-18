@@ -33,7 +33,13 @@ module.exports = (env) ->
           messages = @buffer[..-2]
           for msg in messages.split "\n"
             if msg.length isnt 0
-              @onReceive JSON.parse msg
+              jsonMsg = null
+              try
+                jsonMsg = JSON.parse msg
+              catch e
+                env.logger.error "error parsing pilight response: #{e} in \"#{msg}\""
+              if jsonMsg? then @onReceive(jsonMsg)
+               
           @buffer = ''
 
       lastError = null
@@ -52,12 +58,9 @@ module.exports = (env) ->
       @send { message: "client gui" }
 
     send: (jsonMsg) ->
-      success = false
-      if @_state isnt "unconnected"
-        env.logger.debug("pilight send: ", JSON.stringify(jsonMsg, null, " ")) if @debug
-        @write JSON.stringify(jsonMsg) + "\n", 'utf8'
-        success = true
-      return success
+      env.logger.debug("pilight send: ", JSON.stringify(jsonMsg, null, " ")) if @debug
+      @write JSON.stringify(jsonMsg) + "\n", 'utf8'
+      return true
 
     onReceive: (jsonMsg) ->
       env.logger.debug("pilight received: ", JSON.stringify(jsonMsg, null, " ")) if @debug
