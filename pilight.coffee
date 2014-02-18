@@ -5,6 +5,7 @@ module.exports = (env) ->
   convict = env.require "convict"
   Q = env.require 'q'
   assert = env.require 'cassert'
+  _ = env.require 'lodash'
 
   EverSocket = env.EverSocket or require("eversocket").EverSocket
   SSDP = env.SSDP or require("node-ssdp")
@@ -380,6 +381,7 @@ module.exports = (env) ->
         @humidity = @config.lastHumidity
 
       if @config.settings.humidity
+        @attributes = _.clone @attributes
         @attributes.humidity =
           description: "the messured humidity"
           type: Number
