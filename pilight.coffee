@@ -14,13 +14,14 @@ module.exports = (env) ->
     buffer: ''
 
     constructor: (options) ->
+      @_state = "unconnected"
       @debug = options.debug
       delete options.debug
       super(options)
 
 
       @on "end", =>
-        @state = "unconnected"
+        @_state = "unconnected"
 
       @.on "reconnect", =>
         env.logger.info "connected to pilight-daemon"
@@ -48,12 +49,11 @@ module.exports = (env) ->
         lastError = err
 
     sendWelcome: ->
-      @state = "welcome"
       @send { message: "client gui" }
 
     send: (jsonMsg) ->
       success = false
-      if @state isnt "unconnected"
+      if @_state isnt "unconnected"
         env.logger.debug("pilight send: ", JSON.stringify(jsonMsg, null, " ")) if @debug
         @write JSON.stringify(jsonMsg) + "\n", 'utf8'
         success = true
@@ -61,18 +61,14 @@ module.exports = (env) ->
 
     onReceive: (jsonMsg) ->
       env.logger.debug("pilight received: ", JSON.stringify(jsonMsg, null, " ")) if @debug
-      switch @state
-        when "welcome"
-          # message: "accept client"
-          if jsonMsg.message is "accept client"
-            @state = "connected"
-            @send { message: "request config" }
-        when "connected"
-          switch 
-            when jsonMsg.config?
-              @emit "config", jsonMsg
-            when jsonMsg.origin?
-              @emit "update", jsonMsg
+      switch 
+        when jsonMsg.message is "accept client"
+          @_state = "connected"
+          @send { message: "request config" }
+        when jsonMsg.config?
+          @emit "config", jsonMsg
+        when jsonMsg.origin?
+          @emit "update", jsonMsg
       return
 
   class PilightPlugin extends env.plugins.Plugin
