@@ -39,7 +39,6 @@ module.exports = (env) ->
 
           pilightPlugin.client.emit "reconnect"
           assert pilightPlugin.client.writeCalled
-          assert pilightPlugin.client.state is "welcome"
 
       describe "#onReceive()", ->
         it "should request config", ->
@@ -54,7 +53,7 @@ module.exports = (env) ->
           ) + "\n"
 
           assert pilightPlugin.client.writeCalled 
-          assert pilightPlugin.client.state is "connected"
+          assert pilightPlugin.client._state is "connected"
 
         it "should create a PilightSwitch", ->
           sampleConfigMsg =
