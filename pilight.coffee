@@ -29,7 +29,8 @@ module.exports = (env) ->
         @sendWelcome()
 
       @on "data", (data) =>
-        @buffer += data.toString()
+        # https://github.com/pimatic/pimatic/issues/65
+        @buffer += data.toString().replace('\0', '')
         if @buffer[@buffer.length-2] is "\n" or @buffer[@buffer.length-1] is "\n"
           messages = @buffer[..-2]
           for msg in messages.split "\n"
@@ -40,7 +41,6 @@ module.exports = (env) ->
               catch e
                 env.logger.error "error parsing pilight response: #{e} in \"#{msg}\""
               if jsonMsg? then @onReceive(jsonMsg)
-               
           @buffer = ''
 
       lastError = null
