@@ -30,7 +30,7 @@ module.exports = (env) ->
 
       @on "data", (data) =>
         # https://github.com/pimatic/pimatic/issues/65
-        @buffer += data.toString().replace('\0', '')
+        @buffer += data.toString().replace(/\0/g, '')
         if @buffer[@buffer.length-2] is "\n" or @buffer[@buffer.length-1] is "\n"
           messages = @buffer[..-2]
           for msg in messages.split "\n"
