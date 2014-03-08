@@ -17,7 +17,12 @@ module.exports = (env) ->
     constructor: (options) ->
       @_state = "unconnected"
       @debug = options.debug
+      @enableHeartbeat = options.enableHeartbeat
+      @heartbeatInterval = options.heartbeatInterval
+      @heartbeatTimeoutTime = options.timeout
       delete options.debug
+      delete options.enableHeartbeat
+      delete options.heartbeatInterval
       super(options)
 
 
@@ -27,6 +32,7 @@ module.exports = (env) ->
       @.on "reconnect", =>
         env.logger.info "connected to pilight-daemon"
         @sendWelcome()
+        @startHeartbeat() if @enableHeartbeat
 
       @on "data", (data) =>
         # https://github.com/pimatic/pimatic/issues/65
@@ -35,12 +41,15 @@ module.exports = (env) ->
           messages = @buffer[..-2]
           for msg in messages.split "\n"
             if msg.length isnt 0
-              jsonMsg = null
-              try
-                jsonMsg = JSON.parse msg
-              catch e
-                env.logger.error "error parsing pilight response: #{e} in \"#{msg}\""
-              if jsonMsg? then @onReceive(jsonMsg)
+              if msg is "BEAT"
+                @onBeat()
+              else
+                jsonMsg = null
+                try
+                  jsonMsg = JSON.parse msg
+                catch e
+                  env.logger.error "error parsing pilight response: #{e} in \"#{msg}\""
+                if jsonMsg? then @onReceive(jsonMsg)
           @buffer = ''
 
       lastError = null
@@ -75,6 +84,42 @@ module.exports = (env) ->
           @emit "update", jsonMsg
       return
 
+    startHeartbeat: ->
+      env.logger.debug "startHeartbeat", @heartbeatInterval
+      if @heartbeatTimeout
+        clearTimeout @heartbeatTimeout
+        delete @heartbeatTimeout
+
+      sendHeartbeat = =>
+        env.logger.debug("sending HEART to pilight-daemon") if @debug
+        try
+          @write "HEART\n", 'utf8'
+        catch e
+          env.logger.warn "Could not send heartbeat to pilight-daemon: #{e.message}"
+          @heartbeatTimeout = setTimeout(sendHeartbeat, @heartbeatInterval)
+
+        deferred = Q.defer()
+        # If we get a beat back then resolve the promise
+        @once 'beat', deferred.resolve
+        # and set a timeout:
+        promise = deferred.promise.timeout(
+          @heartbeatTimeoutTime, 
+          "heartbeat to pilight-daemon timedout after #{@heartbeatTimeoutTime}ms."
+        ).catch( (e) =>
+          env.logger.warn(e.message)
+        ).finally(=> 
+          # In case of a timeout and in case of an resolve, send next heartbeat
+          setTimeout(sendHeartbeat, @heartbeatInterval) 
+        )
+
+      @heartbeatTimeout = setTimeout(sendHeartbeat, @heartbeatInterval)
+
+    onBeat: =>
+      env.logger.debug("got BEAT from pilight-daemon") if @debug
+      @emit "beat"
+
+
+
   class PilightPlugin extends env.plugins.Plugin
 
     init: (@app, @framework, @config) =>
@@ -87,6 +132,8 @@ module.exports = (env) ->
         reconnectWait: 3000
         timeout: @config.timeout
         debug: @config.debug
+        enableHeartbeat: @config.enableHeartbeat
+        heartbeatInterval: @config.heartbeatInterval
       )
       
       if @config.ssdp

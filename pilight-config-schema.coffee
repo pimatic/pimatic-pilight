@@ -22,6 +22,16 @@ module.exports =
     doc: "enable ssdp"
     format: Boolean
     default: false
+  enableHeartbeat:
+    doc: """if enabled pimatic sends a heatbeat in the defined interval to check if the connection
+      to the pilight-daemon is still alive.
+      """
+    format: Boolean
+    default: true
+  heartbeatInterval:
+    doc: "The interval in ms the heartbeat is sent to the pilight-daemon"
+    format: "nat"
+    default: 20000
   minTemperature:
     doc: "temperature values (in °C) below this value will be discarded"
     format: Number
@@ -29,7 +39,7 @@ module.exports =
   maxTemperature:
     doc: "temperature values (in °C) above this value will be discarded"
     format: Number
-    default: 50
+    default: 100
   maxTemperatureDelta:
     doc: "temperature changes per second above this value (in °C/s) will be discarded"
     format: Number
