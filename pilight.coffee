@@ -187,7 +187,7 @@ module.exports = (env) ->
 
       @client.on "config", onReceiveConfig = (json) =>
         config = json.config
-
+        @pilightVersion = json.version[0].split('.')
         # iterate ´config = { living: { name: "Living", ... }, ...}´
         for location, devices of config
           #   location = "tv"
@@ -339,33 +339,42 @@ module.exports = (env) ->
       @id = config.id
       @name = config.name
       if config.lastDimlevel?
-        @_dimlevel= config.lastDimlevel
+        @_dimlevel = config.lastDimlevel
       super()
       plugin.on "update #{@id}", (msg) =>
         unless msg.values?.dimlevel? or msg.values?.state?
           env.logger.error "wrong message from piligt daemon received:", msg
           return
-        unless msg.values.dimlevel? 
-          #msg.values.dimlevel = (if msg.values.state is 'on' then 100 else 0)
-          return
-        dimlevel = @_normalizePilightDimlevel(msg.values.dimlevel)
-        @_setDimlevel dimlevel
 
+        if msg.values.dimlevel?
+          dimlevel = @_normalizePilightDimlevel(msg.values.dimlevel)
+          @_setDimlevel dimlevel
+        else if msg.values.state is 'off'
+          @_setDimlevel 0
+        
     # Run the pilight-send executable.
     changeDimlevelTo: (dimlevel) ->
       assert not isNaN(dimlevel) 
-      dimLevel = parseFloat(dimLevel)
+      dimlevel = parseFloat(dimlevel)
       if @_dimlevel is dimlevel then return Q()
 
       implizitState = (if dimlevel > 0 then "on" else "off")
-
       jsonMsg =
         message: "send"
         code:
           location: @config.location
           device: @config.device
+          state: implizitState
           values: 
-            dimlevel: @_toPilightDimlevel(dimlevel).toString()
+            dimlevel: (
+              if plugin.pilightVersion? and plugin.pilightVersion[0] is "2"
+                # pilight 2.1 => Send dimlevel as string
+                @_toPilightDimlevel(dimlevel).toString()
+              else
+                # pilight >2.1 => send dimlevel as number
+                @_toPilightDimlevel(dimlevel)
+            )
+
       result1 = plugin.sendState @id, jsonMsg
 
       if implizitState isnt @_state
