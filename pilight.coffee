@@ -339,7 +339,7 @@ module.exports = (env) ->
       @id = config.id
       @name = config.name
       if config.lastDimlevel?
-        @_dimlevel = config.lastDimlevel
+        @_setDimlevel(config.lastDimlevel, no)
       super()
       plugin.on "update #{@id}", (msg) =>
         unless msg.values?.dimlevel? or msg.values?.state?
@@ -376,7 +376,7 @@ module.exports = (env) ->
             )
 
       result1 = plugin.sendState @id, jsonMsg
-
+    
       if implizitState isnt @_state
         jsonMsg =
           message: "send"
@@ -396,11 +396,11 @@ module.exports = (env) ->
       @name = probs.name
       @_setDimlevel @_normalizePilightDimlevel(probs.dimlevel)
 
-    _setDimlevel: (dimlevel) ->
+    _setDimlevel: (dimlevel, save = yes) ->
       if dimlevel is @_dimlevel then return
       super dimlevel
       @config.lastDimlevel = dimlevel
-      plugin.framework.saveConfig()
+      plugin.framework.saveConfig() if save
 
     _normalizePilightDimlevel: (dimlevel) ->
       max = @probs?.settings?.max
