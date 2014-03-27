@@ -210,14 +210,19 @@ module.exports = (env) ->
         return
 
     handleDeviceInConfig: (id, deviceProbs) =>
-      getClassFromType = (type) =>
-        switch type
-          when 1 then [PilightSwitch, "PilightSwitch"]
+      getClassFromType = (deviceProbs) =>
+        switch deviceProbs.type
+          when 1 
+            if deviceProbs.settings?.states isnt "opened,closed"
+              [PilightSwitch, "PilightSwitch"]
+            else
+              [PilightContact, "PilightContact"]
           when 2 then [PilightDimmer, "PilightDimmer"]
           when 3 then [PilightTemperatureSensor, "PilightTemperatureSensor"]
+          when 5 then [PilightShutter, "PilightShutter"]
           else [null, null]
 
-      [Class, ClassName] = getClassFromType deviceProbs.type
+      [Class, ClassName] = getClassFromType deviceProbs
       unless Class?
         env.logger.warn "Unimplemented pilight device type: #{deviceProbs.type}" 
         return
@@ -227,7 +232,7 @@ module.exports = (env) ->
           env.logger.error "expected #{id} to be an #{Class}"
           return
       else 
-        config = 
+        config = {
           id: id
           name: deviceProbs.name
           class: ClassName
@@ -235,6 +240,7 @@ module.exports = (env) ->
           location: deviceProbs.location
           device: deviceProbs.device
           settings: {}
+        }
         if deviceProbs.humidity then config.settings.humidity = 1
         if deviceProbs.temperature then config.settings.temperature = 1
         actuator = new Class config
@@ -275,6 +281,12 @@ module.exports = (env) ->
           true
         when 'PilightTemperatureSensor'
           @framework.registerDevice new PilightTemperatureSensor config
+          true
+        when 'PilightShutter'
+          @framework.registerDevice new PilightShutter config
+          true
+        when 'PilightContact'
+          @framework.registerDevice new PilightContact config
           true
         else false
 
@@ -328,6 +340,74 @@ module.exports = (env) ->
       @config.lastState = state
       plugin.framework.saveConfig()
 
+  class PilightContact extends env.devices.ContactSensor
+    probs: null
+
+    constructor: (@config) ->
+      assert @config.id?
+      assert @config.name?
+      assert @config.location?
+      assert @config.device?
+      assert (
+        if @config.lastContactState? 
+        then typeof @config.lastContactState is "boolean" else true
+      ) 
+
+      @id = config.id
+      @name = config.name
+      if config.lastContactState?
+        @_contact = config.lastContactState
+      super()
+      plugin.on "update #{@id}", (msg) =>
+        unless msg.values?.state?
+          env.logger.error "wrong message from piligt daemon received:", msg
+          return
+        assert msg.values.state is 'closed' or msg.values.state is 'open'
+        state = (if msg.values.state is 'closed' then on else off)
+        @._setContact(state)
+
+    updateFromPilightConfig: (probs) ->
+      assert probs?
+      @name = probs.name
+      @_setContact (if probs.state is 'closed' then on else off)
+
+
+  class PilightShutter extends env.devices.ShutterController
+    probs: null
+
+    constructor: (@config) ->
+      assert @config.id?
+      assert @config.name?
+      assert @config.location?
+      assert @config.device?
+
+      @id = config.id
+      @name = config.name
+      super()
+
+    liftUp: (state) ->
+      jsonMsg =
+        message: "send"
+        code:
+          location: @config.location
+          device: @config.device
+          state: 'up'
+      return plugin.sendState @id, jsonMsg
+
+    lowerDown: (state) ->
+      jsonMsg =
+        message: "send"
+        code:
+          location: @config.location
+          device: @config.device
+          state: 'down'
+      return plugin.sendState @id, jsonMsg
+
+    updateFromPilightConfig: (probs) ->
+      assert probs?
+      @name = probs.name
+
+
   class PilightDimmer extends env.devices.DimmerActuator
 
     constructor: (@config) ->
@@ -339,7 +419,8 @@ module.exports = (env) ->
       @id = config.id
       @name = config.name
       if config.lastDimlevel?
-        @_setDimlevel(config.lastDimlevel, no)
+        @_dimlevel = config.lastDimlevel
+        @_state = (config.lastDimlevel > 0)
       super()
       plugin.on "update #{@id}", (msg) =>
         unless msg.values?.dimlevel? or msg.values?.state?
@@ -396,11 +477,11 @@ module.exports = (env) ->
       @name = probs.name
       @_setDimlevel @_normalizePilightDimlevel(probs.dimlevel)
 
-    _setDimlevel: (dimlevel, save = yes) ->
+    _setDimlevel: (dimlevel) ->
       if dimlevel is @_dimlevel then return
       super dimlevel
       @config.lastDimlevel = dimlevel
-      plugin.framework.saveConfig() if save
+      plugin.framework.saveConfig()
 
     _normalizePilightDimlevel: (dimlevel) ->
       max = @probs?.settings?.max
