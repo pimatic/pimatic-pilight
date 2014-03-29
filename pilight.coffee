@@ -249,24 +249,28 @@ module.exports = (env) ->
       actuator.updateFromPilightConfig deviceProbs
 
 
-    sendState: (id, jsonMsg) ->
+    sendState: (id, jsonMsg, expectAck = yes) ->
       deferred = Q.defer()
       success = @client.send jsonMsg
       if success
-        event = "update #{id}"
-        onStateCallback = null
-        # register a timeout if we dont get a awnser from pilight-daemon
-        onTimeout = => 
-          @removeListener event, onStateCallback
-          deferred.reject new Error "Request to pilight-daemon timeout"
-          return
-        receiveTimeout = setTimeout onTimeout, @config.timeout
-        # if we get a awnser this function get called:
-        onStateCallback = (state) =>
-          clearTimeout receiveTimeout
-          @removeListener event, onStateCallback
+        if expectAck
+          # We wait for a feedback of pilight
+          event = "update #{id}"
+          onStateCallback = null
+          # register a timeout if we dont get a awnser from pilight-daemon
+          onTimeout = => 
+            @removeListener event, onStateCallback
+            deferred.reject new Error "Request to pilight-daemon timeout"
+            return
+          receiveTimeout = setTimeout onTimeout, @config.timeout
+          # if we get a awnser this function get called:
+          onStateCallback = (state) =>
+            clearTimeout receiveTimeout
+            @removeListener event, onStateCallback
+            deferred.resolve()
+          @on event, onStateCallback
+        else
           deferred.resolve()
-        @on event, onStateCallback
       else
         deferred.reject new Error "Could not send request to pilight-daemon"
       return deferred.promise
@@ -313,21 +317,18 @@ module.exports = (env) ->
           return
         assert msg.values.state is 'on' or msg.values.state is 'off'
         state = (if msg.values.state is 'on' then on else off)
-        @._setState state
+        @_setState state
 
     # Run the pilight-send executable.
     changeStateTo: (state) ->
-      if @_state is state
-        return Q true
-
-      jsonMsg =
+      jsonMsg = {
         message: "send"
         code:
           location: @config.location
           device: @config.device
           state: if state then "on" else "off"
-
-      return plugin.sendState @id, jsonMsg
+      }
+      return plugin.sendState(@id, jsonMsg, (@_state isnt state))
 
     updateFromPilightConfig: (probs) ->
       assert probs?
@@ -364,7 +365,7 @@ module.exports = (env) ->
           return
         assert msg.values.state is 'closed' or msg.values.state is 'open'
         state = (if msg.values.state is 'closed' then on else off)
-        @._setContact(state)
+        @_setContact(state)
 
     updateFromPilightConfig: (probs) ->
       assert probs?
@@ -380,33 +381,41 @@ module.exports = (env) ->
       assert @config.name?
       assert @config.location?
       assert @config.device?
+      assert (
+        if @config.lastPosition? 
+        then @config.lastPosition in ['down', 'up']
+        else true
+      ) 
 
       @id = config.id
       @name = config.name
+      if config.lastPosition?
+        @_position = config.lastPosition
       super()
+      plugin.on "update #{@id}", (msg) =>
+        unless msg.values?.state?
+          env.logger.error "wrong message from piligt daemon received:", msg
+          return
+        assert msg.values.state is 'up' or msg.values.state is 'down'
+        position = msg.values.state
+        @_setPosition(position)
 
-    liftUp: (state) ->
-      jsonMsg =
+    moveToPosition: (position) ->
+      assert position in ['up', 'down']
+      jsonMsg = {
         message: "send"
         code:
           location: @config.location
           device: @config.device
-          state: 'up'
-      return plugin.sendState @id, jsonMsg
+          state: position
+      }
+      return plugin.sendState(@id, jsonMsg, (@_position isnt position))
 
-    lowerDown: (state) ->
-      jsonMsg =
-        message: "send"
-        code:
-          location: @config.location
-          device: @config.device
-          state: 'down'
-      return plugin.sendState @id, jsonMsg
 
     updateFromPilightConfig: (probs) ->
       assert probs?
       @name = probs.name
-
+      @_setPosition(probs.state)
 
   class PilightDimmer extends env.devices.DimmerActuator
 
@@ -437,15 +446,13 @@ module.exports = (env) ->
     changeDimlevelTo: (dimlevel) ->
       assert not isNaN(dimlevel) 
       dimlevel = parseFloat(dimlevel)
-      if @_dimlevel is dimlevel then return Q()
 
       implizitState = (if dimlevel > 0 then "on" else "off")
-      jsonMsg =
+      jsonMsg = {
         message: "send"
         code:
           location: @config.location
           device: @config.device
-          state: implizitState
           values: 
             dimlevel: (
               if plugin.pilightVersion? and plugin.pilightVersion[0] is "2"
@@ -455,17 +462,19 @@ module.exports = (env) ->
                 # pilight >2.1 => send dimlevel as number
                 @_toPilightDimlevel(dimlevel)
             )
+      }
 
-      result1 = plugin.sendState @id, jsonMsg
+      result1 = plugin.sendState(@id, jsonMsg, (@_dimlevel isnt dimlevel))
     
       if implizitState isnt @_state
-        jsonMsg =
+        jsonMsg = {
           message: "send"
           code:
             location: @config.location
             device: @config.device
             state: implizitState
-        result2 = plugin.sendState @id, jsonMsg
+        }
+        result2 = plugin.sendState(@id, jsonMsg, no)
 
       return if result2? then Q.all([result1, result2]) else result1
     updateFromPilightConfig: (probs) ->
