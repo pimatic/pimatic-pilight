@@ -229,7 +229,7 @@ module.exports = (env) ->
       actuator = @framework.getDeviceById id
       if actuator?
         unless actuator instanceof Class
-          env.logger.error "expected #{id} to be an #{Class}"
+          env.logger.error "expected #{id} to be an #{ClassName}"
           return
       else 
         config = {
