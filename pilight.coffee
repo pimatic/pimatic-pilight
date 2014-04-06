@@ -363,7 +363,7 @@ module.exports = (env) ->
         unless msg.values?.state?
           env.logger.error "wrong message from piligt daemon received:", msg
           return
-        assert msg.values.state is 'closed' or msg.values.state is 'open'
+        assert msg.values.state is 'closed' or msg.values.state is 'opened'
         state = (if msg.values.state is 'closed' then on else off)
         @_setContact(state)
 
