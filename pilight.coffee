@@ -444,8 +444,8 @@ module.exports = (env) ->
         
     # Run the pilight-send executable.
     changeDimlevelTo: (dimlevel) ->
-      assert not isNaN(dimlevel) 
       dimlevel = parseFloat(dimlevel)
+      assert not isNaN(dimlevel) 
 
       implizitState = (if dimlevel > 0 then "on" else "off")
       jsonMsg = {
@@ -480,8 +480,8 @@ module.exports = (env) ->
     updateFromPilightConfig: (probs) ->
       assert probs?
       assert probs.dimlevel?
-      assert not isNaN(probs.dimlevel)  
       probs.dimlevel = parseFloat(probs.dimlevel)
+      assert not isNaN(probs.dimlevel)  
       @probs = probs
       @name = probs.name
       @_setDimlevel @_normalizePilightDimlevel(probs.dimlevel)
@@ -569,7 +569,8 @@ module.exports = (env) ->
 
 
     setValues: (values) ->
-      assert not isNaN(@config.settings.decimals)
+      @config.settings.decimals = parseFloat(@config.settings.decimals)
+      assert(not isNaN(@config.settings.decimals))
       currentTime = (new Date()).getTime()
       if values.temperature?
         temperature = values.temperature/Math.pow(10, @config.settings.decimals)
