@@ -383,7 +383,7 @@ module.exports = (env) ->
       assert @config.device?
       assert (
         if @config.lastPosition? 
-        then @config.lastPosition in ['down', 'up']
+        then @config.lastPosition in ['down', 'up', 'stopped']
         else true
       ) 
 
@@ -399,6 +399,7 @@ module.exports = (env) ->
         assert msg.values.state is 'up' or msg.values.state is 'down'
         position = msg.values.state
         @_setPosition(position)
+        @_lastPilightPosition = position
 
     moveToPosition: (position) ->
       assert position in ['up', 'down']
@@ -409,13 +410,28 @@ module.exports = (env) ->
           device: @config.device
           state: position
       }
-      return plugin.sendState(@id, jsonMsg, (@_position isnt position))
+      return plugin.sendState(@id, jsonMsg, (@_lastPilightPosition isnt position)).then( =>
+        @_setPosition(position)
+      )
 
+    stop: () ->
+      if @_position is 'stopped' then return Q()
+      jsonMsg = {
+        message: "send"
+        code:
+          location: @config.location
+          device: @config.device
+          state: @_position
+      }
+      return plugin.sendState(@id, jsonMsg, no).then( =>
+        @_setPosition('stopped')
+      )
 
     updateFromPilightConfig: (probs) ->
       assert probs?
       @name = probs.name
       @_setPosition(probs.state)
+      @_lastPilightPosition = probs.state
 
   class PilightDimmer extends env.devices.DimmerActuator
 
