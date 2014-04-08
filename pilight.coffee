@@ -241,8 +241,19 @@ module.exports = (env) ->
           device: deviceProbs.device
           settings: {}
         }
-        if deviceProbs.humidity then config.settings.humidity = 1
-        if deviceProbs.temperature then config.settings.temperature = 1
+        # do some remapping for properites:
+        # http://wiki.pilight.org/doku.php/changes_features_fixes?rev=1396735707
+        if deviceProbs.humidity or deviceProbs['gui-show-humidity'] 
+          config.settings.humidity = 1
+        if deviceProbs.temperature or deviceProbs['gui-show-temperature']
+          config.settings.temperature = 1
+        if deviceProbs['device-decimals']?
+          deviceProbs.decimals = deviceProbs['device-decimals']
+        if deviceProbs['dimlevel-maximum']?
+          deviceProbs.max = deviceProbs['dimlevel-maximum']
+        if deviceProbs['dimlevel-minimum']?
+          deviceProbs.min = deviceProbs['dimlevel-minimum']
+
         actuator = new Class config
         @framework.registerDevice actuator
         @framework.addDeviceToConfig config
