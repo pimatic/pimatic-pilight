@@ -514,8 +514,8 @@ module.exports = (env) ->
           return
 
         if msg.values.dimlevel?
-          @_lastPilightDimlevel = msg.values.dimlevel
-          dimlevel = @_normalizePilightDimlevel(msg.values.dimlevel)
+          @_lastPilightDimlevel = parseFloat(msg.values.dimlevel)
+          dimlevel = @_normalizePilightDimlevel(@_lastPilightDimlevel )
           @_setDimlevel dimlevel
         else if msg.values.state is 'off'
           @_setDimlevel 0
