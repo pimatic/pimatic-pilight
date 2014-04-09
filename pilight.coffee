@@ -1,5 +1,4 @@
 module.exports = (env) ->
-  spawn = require("child_process").spawn
   util = require 'util'
 
   convict = env.require "convict"
@@ -226,34 +225,54 @@ module.exports = (env) ->
       unless Class?
         env.logger.warn "Unimplemented pilight device type: #{deviceProbs.type}" 
         return
+
+      config = {
+        id: id
+        name: deviceProbs.name
+        class: ClassName
+        inPilightConfig: true
+        location: deviceProbs.location
+        device: deviceProbs.device
+      }
+      # do some remapping for properites:
+      # http://wiki.pilight.org/doku.php/changes_features_fixes?rev=1396735707
+      # Temperature devices:
+      if deviceProbs.settings?.humidity or deviceProbs['gui-show-humidity'] #old and new
+        config.hasHumidity = yes
+        deviceProbs['gui-show-humidity'] = yes
+      if deviceProbs.settings?.temperature or deviceProbs['gui-show-temperature'] #old and new
+        config.hasTemperature = yes
+        deviceProbs['gui-show-temperature'] = yes
+      if deviceProbs.settings?.decimals? #old
+        config.deviceDecimals = parseInt(deviceProbs.settings.decimals, 10)
+        deviceProbs['device-decimals'] = config.deviceDecimals
+      if deviceProbs['device-decimals']? #new
+        config.deviceDecimals = deviceProbs['device-decimals']
+      # Dimmer devices
+      if deviceProbs.min? #old
+        config.minDimlevel = parseInt(deviceProbs.min, 10)
+      if deviceProbs.settings?.min? #old
+        config.minDimlevel = parseInt(deviceProbs.settings.min, 10)
+        deviceProbs['dimlevel-minimum'] = config.minDimlevel
+      if deviceProbs['dimlevel-minimum']? #new
+        config.minDimlevel = parseInt(deviceProbs['dimlevel-minimum'], 10)
+
+      if deviceProbs.max? #old
+        config.maxDimlevel = parseInt(deviceProbs.max, 10)
+      if deviceProbs.settings?.max? #old
+        config.maxDimlevel = parseInt(deviceProbs.settings.max, 10)
+        deviceProbs['dimlevel-maximum'] = config.maxDimlevel
+      if deviceProbs['dimlevel-maximum']? #new
+        config.maxDimlevel = parseInt(deviceProbs['dimlevel-maximum'], 10)
+
       actuator = @framework.getDeviceById id
       if actuator?
         unless actuator instanceof Class
           env.logger.error "expected #{id} to be an #{ClassName}"
           return
       else 
-        config = {
-          id: id
-          name: deviceProbs.name
-          class: ClassName
-          inPilightConfig: true
-          location: deviceProbs.location
-          device: deviceProbs.device
-          settings: {}
-        }
-        # do some remapping for properites:
-        # http://wiki.pilight.org/doku.php/changes_features_fixes?rev=1396735707
-        if deviceProbs.humidity or deviceProbs['gui-show-humidity'] 
-          config.settings.humidity = 1
-        if deviceProbs.temperature or deviceProbs['gui-show-temperature']
-          config.settings.temperature = 1
-        if deviceProbs['device-decimals']?
-          deviceProbs.decimals = deviceProbs['device-decimals']
-        if deviceProbs['dimlevel-maximum']?
-          deviceProbs.max = deviceProbs['dimlevel-maximum']
-        if deviceProbs['dimlevel-minimum']?
-          deviceProbs.min = deviceProbs['dimlevel-minimum']
-
+        console.log deviceProbs
+        console.log config
         actuator = new Class config
         @framework.registerDevice actuator
         @framework.addDeviceToConfig config
@@ -287,20 +306,47 @@ module.exports = (env) ->
       return deferred.promise
 
     createDevice: (config) =>
+
+      handleLegacyConfig = (config) =>
+        if config.settings
+          # TemperatureSensor
+          if config.settings.temperature?
+            config.hasTemperature = !!(config.settings.temperature)
+          if config.settings.humidity?
+            config.hasHumidity = !!(config.settings.humidity)
+          if config.settings.decimals?
+            config.deviceDecimals = parseInt(config.settings.decimals, 10)
+          # Dimmer
+          if config.settings.min?
+            config.minDimlevel = parseInt(config.settings.min, 10)
+          else
+            config.minDimlevel = 0
+          if config.settings.max?
+            config.maxDimlevel = parseInt(config.settings.max, 10)
+          else
+            config.maxDimlevel = 15
+          # Delete settings
+          delete config.settings
+
       return switch config.class
         when 'PilightSwitch'
+          handleLegacyConfig(config)
           @framework.registerDevice new PilightSwitch config
           true
         when 'PilightDimmer'
+          handleLegacyConfig(config)
           @framework.registerDevice new PilightDimmer config
           true
         when 'PilightTemperatureSensor'
+          handleLegacyConfig(config)
           @framework.registerDevice new PilightTemperatureSensor config
           true
         when 'PilightShutter'
+          handleLegacyConfig(config)
           @framework.registerDevice new PilightShutter config
           true
         when 'PilightContact'
+          handleLegacyConfig(config)
           @framework.registerDevice new PilightContact config
           true
         else false
@@ -451,6 +497,8 @@ module.exports = (env) ->
       assert @config.name?
       assert @config.location?
       assert @config.device?
+      assert @config.minDimlevel?
+      assert @config.maxDimlevel?
 
       @id = config.id
       @name = config.name
@@ -507,10 +555,10 @@ module.exports = (env) ->
     updateFromPilightConfig: (probs) ->
       assert probs?
       assert probs.dimlevel?
+      @config.minDimlevel = probs['dimlevel-minimum'] if probs['dimlevel-minimum']?
+      @config.maxDimlevel = probs['dimlevel-maximum'] if probs['dimlevel-maximum']?
       probs.dimlevel = parseFloat(probs.dimlevel)
       assert not isNaN(probs.dimlevel)  
-      @probs = probs
-      @name = probs.name
       @_setDimlevel @_normalizePilightDimlevel(probs.dimlevel)
 
     _setDimlevel: (dimlevel) ->
@@ -520,22 +568,18 @@ module.exports = (env) ->
       plugin.framework.saveConfig()
 
     _normalizePilightDimlevel: (dimlevel) ->
-      max = @probs?.settings?.max
-      # if not set assume max dimlevel is 15
-      unless max? then max = 15
-      max = parseInt(max, 10)
+      max = parseInt(@config.maxDimlevel, 10)
       # map it to 0...100
-      ndimlevel = 100.0/15.0 * dimlevel
+      ndimlevel = 100.0/max * dimlevel
       # and round to nearest 0, 5, 10,...
       remainder = ndimlevel % 5
       ndimlevel = Math.floor(ndimlevel / 5)*5 + (if remainder >= 2.5 then 5 else 0)
       return ndimlevel
 
     _toPilightDimlevel: (dimlevel) ->
-      dimlevel = Math.round(dimlevel / 100.0 * 15.0)
+      max = parseInt(@config.maxDimlevel, 10)
+      dimlevel = Math.round(dimlevel / 100.0 * max)
       return dimlevel
-
-
 
   class PilightTemperatureSensor extends env.devices.TemperatureSensor
     temperature: null
@@ -544,7 +588,6 @@ module.exports = (env) ->
     constructor: (@config) ->
       assert @config.id?
       assert @config.name?
-      assert @config.settings?
 
       @id = @config.id
       @name = @config.name
@@ -553,7 +596,7 @@ module.exports = (env) ->
       if @config.lastHumidity?
         @humidity = @config.lastHumidity
 
-      if @config.settings.humidity
+      if @config.hasHumidity
         @attributes = _.clone @attributes
         @attributes.humidity =
           description: "the messured humidity"
@@ -568,7 +611,9 @@ module.exports = (env) ->
 
     updateFromPilightConfig: (probs) ->
       @name = probs.name
-      @config.settings = probs.settings
+      @config.deviceDecimals = probs['device-decimals'] if probs['device-decimals']?
+      @config.hasHumidity = (probs['gui-show-temperature'] is yes)
+      @config.hasTemperature = (probs['gui-show-humidity'] is yes)
       @setValues
         temperature: probs.temperature
         humidity: probs.humidity
@@ -596,18 +641,19 @@ module.exports = (env) ->
 
 
     setValues: (values) ->
-      @config.settings.decimals = parseFloat(@config.settings.decimals)
-      assert(not isNaN(@config.settings.decimals))
+      @config.deviceDecimals = parseFloat(@config.deviceDecimals)
+      assert(not isNaN(@config.deviceDecimals))
+
       currentTime = (new Date()).getTime()
       if values.temperature?
-        temperature = values.temperature/Math.pow(10, @config.settings.decimals)
+        temperature = values.temperature/Math.pow(10, @config.deviceDecimals)
         isValid = @checkValue("temperature", currentTime, temperature)
         if isValid
           @temperature = temperature
           @emit "temperature", temperature
           @config.lastTemperature = temperature
       if values.humidity?
-        humidity = values.humidity/Math.pow(10, @config.settings.decimals)
+        humidity = values.humidity/Math.pow(10, @config.deviceDecimals)
         isValid = @checkValue("humidity", currentTime, humidity)
         if isValid
           @humidity = humidity
