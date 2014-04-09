@@ -212,10 +212,14 @@ module.exports = (env) ->
       getClassFromType = (deviceProbs) =>
         switch deviceProbs.type
           when 1 
-            if deviceProbs.settings?.states isnt "opened,closed"
-              [PilightSwitch, "PilightSwitch"]
-            else
+            isContact = (
+              deviceProbs.settings?.states is "opened,closed" or 
+              deviceProbs.state in ['closed', 'opened']
+            )
+            if isContact
               [PilightContact, "PilightContact"]
+            else
+              [PilightSwitch, "PilightSwitch"]
           when 2 then [PilightDimmer, "PilightDimmer"]
           when 3 then [PilightTemperatureSensor, "PilightTemperatureSensor"]
           when 5 then [PilightShutter, "PilightShutter"]
@@ -271,8 +275,6 @@ module.exports = (env) ->
           env.logger.error "expected #{id} to be an #{ClassName}"
           return
       else 
-        console.log deviceProbs
-        console.log config
         actuator = new Class config
         @framework.registerDevice actuator
         @framework.addDeviceToConfig config
@@ -512,10 +514,14 @@ module.exports = (env) ->
           return
 
         if msg.values.dimlevel?
+          @_lastPilightDimlevel = msg.values.dimlevel
           dimlevel = @_normalizePilightDimlevel(msg.values.dimlevel)
           @_setDimlevel dimlevel
         else if msg.values.state is 'off'
           @_setDimlevel 0
+        else if msg.values.state is 'on'
+          if @_lastPilightDimlevel?
+            @_setDimlevel @_normalizePilightDimlevel(@_lastPilightDimlevel)
         
     # Run the pilight-send executable.
     changeDimlevelTo: (dimlevel) ->
@@ -558,7 +564,8 @@ module.exports = (env) ->
       @config.minDimlevel = probs['dimlevel-minimum'] if probs['dimlevel-minimum']?
       @config.maxDimlevel = probs['dimlevel-maximum'] if probs['dimlevel-maximum']?
       probs.dimlevel = parseFloat(probs.dimlevel)
-      assert not isNaN(probs.dimlevel)  
+      assert not isNaN(probs.dimlevel)
+      @_lastPilightDimlevel = probs.dimlevel
       @_setDimlevel @_normalizePilightDimlevel(probs.dimlevel)
 
     _setDimlevel: (dimlevel) ->
@@ -612,8 +619,8 @@ module.exports = (env) ->
     updateFromPilightConfig: (probs) ->
       @name = probs.name
       @config.deviceDecimals = probs['device-decimals'] if probs['device-decimals']?
-      @config.hasHumidity = (probs['gui-show-temperature'] is yes)
-      @config.hasTemperature = (probs['gui-show-humidity'] is yes)
+      @config.hasHumidity = (probs['gui-show-humidity'] is yes)
+      @config.hasTemperature = (probs['gui-show-temperature'] is yes)
       @setValues
         temperature: probs.temperature
         humidity: probs.humidity
