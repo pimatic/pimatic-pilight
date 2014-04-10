@@ -25,13 +25,16 @@ module.exports = (env) ->
       super(options)
 
 
-      @on "end", =>
-        @_state = "unconnected"
-
-      @.on "reconnect", =>
+      onConnect = =>
         env.logger.info "connected to pilight-daemon"
         @sendWelcome()
         @startHeartbeat() if @enableHeartbeat
+
+      @on "end", =>
+        @_state = "unconnected"
+
+      @on "connect", onConnect
+      @on "reconnect", onConnect
 
       @on "data", (data) =>
         # https://github.com/pimatic/pimatic/issues/65
@@ -58,10 +61,11 @@ module.exports = (env) ->
           if @debug
             env.logger.debug "supressed repeated error #{err}"
             env.logger.debug err.stack
-          return
-        env.logger.error "Error on connection to pilight-daemon: #{err}"
-        env.logger.debug err.stack
-        lastError = err
+        else
+          env.logger.error "Error on connection to pilight-daemon: #{err}"
+          env.logger.debug err.stack
+          lastError = err
+        this.reconnect()
 
     sendWelcome: ->
       @send { message: "client gui" }
@@ -128,7 +132,7 @@ module.exports = (env) ->
       @config = conf.get ""
 
       @client = new PilightClient(
-        reconnectWait: 3000
+        reconnectWait: 10000
         timeout: @config.timeout
         debug: @config.debug
         enableHeartbeat: @config.enableHeartbeat
@@ -159,7 +163,6 @@ module.exports = (env) ->
               portValue,
               hostValue
             )
-            @client.setReconnectOnTimeout true
             ssdpPilightFound = true
           else
             env.logger.error "received port is not a number"
@@ -182,7 +185,6 @@ module.exports = (env) ->
           @config.port,
           @config.host
         )
-        @client.setReconnectOnTimeout true
 
       @client.on "config", onReceiveConfig = (json) =>
         config = json.config
