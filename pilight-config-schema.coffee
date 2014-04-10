@@ -3,11 +3,11 @@
 # Defines a `node-convict` config-schema and exports it.
 module.exports =
   host:
-    doc: "The ip or host to connect to the piligt-daemon"
+    doc: "The ip or host to connect to the piligt-daemon, you must disabled ssdp to use this."
     format: String
     default: "127.0.0.1"
   port:
-    doc: "port to connect to the piligt-daemon"
+    doc: "port to connect to the piligt-daemon, you must disabled ssdp to use this."
     format: "port"
     default: 5000
   timeout:
@@ -21,7 +21,7 @@ module.exports =
   ssdp:
     doc: "enable ssdp"
     format: Boolean
-    default: false
+    default: true
   enableHeartbeat:
     doc: """if enabled pimatic sends a heatbeat in the defined interval to check if the connection
       to the pilight-daemon is still alive.
