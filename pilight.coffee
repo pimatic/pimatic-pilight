@@ -7,7 +7,7 @@ module.exports = (env) ->
   _ = env.require 'lodash'
 
   EverSocket = env.EverSocket or require("eversocket").EverSocket
-  SSDP = env.SSDP or require("node-ssdp")
+  SSDP = env.SSDP or require("node-ssdp-lite")
 
   class PilightClient extends EverSocket
 
