@@ -15,8 +15,8 @@
     "url": "git://github.com/pimatic/pimatic-pilight.git"
   },
   "dependencies": {
-    "eversocket": "0.0.2",
-    "node-ssdp":"0.2.0"
+    "eversocket": "0.0.3",
+    "node-ssdp-lite":"0.2.0"
   },
   "peerDependencies": {
     "pimatic": "0.7.*"
