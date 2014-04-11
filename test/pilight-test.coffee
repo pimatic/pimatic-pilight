@@ -14,7 +14,7 @@ module.exports = (env) ->
           assert port? and not isNaN port
         setReconnectOnTimeout: ->
       )
-    env.SSDP = {}
+    env.SSDP = =>
 
     pilightPlugin = require('pimatic-pilight') env
 
@@ -29,6 +29,7 @@ module.exports = (env) ->
           pilightPlugin.init null, framework, 
             timeout: 1000
             debug: false
+            ssdp: no
           assert pilightPlugin.client.connectCalled
           
         it "should send welcome", ->
