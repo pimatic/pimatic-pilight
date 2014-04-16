@@ -213,7 +213,7 @@ module.exports = (env) ->
     handleDeviceInConfig: (id, deviceProbs) =>
       getClassFromType = (deviceProbs) =>
         switch deviceProbs.type
-          when 1 
+          when 1, 4
             isContact = (
               deviceProbs.settings?.states is "opened,closed" or 
               deviceProbs.state in ['closed', 'opened']
