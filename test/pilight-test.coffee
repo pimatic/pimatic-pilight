@@ -6,14 +6,15 @@ module.exports = (env) ->
 
   describe "pimatic-pilight", ->
 
-    env.EverSocket = (
-      class EverSocketDummy extends require('events').EventEmitter
-        connect: (port, host) -> 
-          @connectCalled = true
-          assert host?
-          assert port? and not isNaN port
-        setReconnectOnTimeout: ->
-      )
+    env.test =
+      net:
+        connect: (options) =>
+          class SocketDummy extends require('events').EventEmitter
+            constructor: ({port, host}) -> 
+              env.test.net.connectCalled = true
+              assert host?
+              assert port? and not isNaN port
+          return new SocketDummy(options)
     env.SSDP = =>
 
     pilightPlugin = require('pimatic-pilight') env
@@ -30,31 +31,30 @@ module.exports = (env) ->
             timeout: 1000
             debug: false
             ssdp: no
-          assert pilightPlugin.client.connectCalled
+          assert env.test.net.connectCalled
           
         it "should send welcome", ->
-          pilightPlugin.client.write = (data) ->
+          pilightPlugin.client.socket.write = (data) ->
             @writeCalled = true
             msg = JSON.parse data
             assert msg.message is "client gui" 
 
-          pilightPlugin.client.emit "reconnect"
-          assert pilightPlugin.client.writeCalled
+          pilightPlugin.client.socket.emit "connect"
+          assert pilightPlugin.client.socket.writeCalled
 
       describe "#onReceive()", ->
         it "should request config", ->
-          pilightPlugin.client.writeCalled = false
-          pilightPlugin.client.write = (data) ->
+          pilightPlugin.client.socket.writeCalled = false
+          pilightPlugin.client.socket.write = (data) ->
             @writeCalled = true
             msg = JSON.parse data
             assert msg.message is "request config" 
 
-          pilightPlugin.client.emit 'data', JSON.stringify(
+          pilightPlugin.client.socket.emit 'data', JSON.stringify(
             message: "accept client"
           ) + "\n"
 
-          assert pilightPlugin.client.writeCalled 
-          assert pilightPlugin.client._state is "connected"
+          assert pilightPlugin.client.socket.writeCalled 
 
         it "should create a PilightSwitch", ->
           sampleConfigMsg =
@@ -102,7 +102,7 @@ module.exports = (env) ->
             @saveConfigCalled = true
             assert pilightSwitch._state is false
 
-          pilightPlugin.client.emit 'data', JSON.stringify(sampleConfigMsg) + '\n'
+          pilightPlugin.client.socket.emit 'data', JSON.stringify(sampleConfigMsg) + '\n'
 
           assert framework.getDeviceByIdCalled
           assert framework.registerDeviceCalled
@@ -155,7 +155,7 @@ module.exports = (env) ->
             assert pilightDimmer._dimlevel is 65 # 15 => 100% so 10 => 65%
             assert pilightDimmer._state is on
 
-          pilightPlugin.client.emit 'data', JSON.stringify(sampleConfigMsg) + '\n'
+          pilightPlugin.client.socket.emit 'data', JSON.stringify(sampleConfigMsg) + '\n'
 
           assert framework.getDeviceByIdCalled
           assert framework.registerDeviceCalled
@@ -209,7 +209,7 @@ module.exports = (env) ->
             assert pilightTemperatureSensor.temperature is 23
             assert pilightTemperatureSensor.humidity is 76
 
-          pilightPlugin.client.emit 'data', JSON.stringify(sampleConfigMsg) + '\n'
+          pilightPlugin.client.socket.emit 'data', JSON.stringify(sampleConfigMsg) + '\n'
 
           assert framework.getDeviceByIdCalled
           assert framework.registerDeviceCalled
@@ -223,7 +223,7 @@ module.exports = (env) ->
           framework.saveConfig = () ->
             @saveConfigCalled = true
           gotData = false
-          pilightPlugin.client.write = (data) ->
+          pilightPlugin.client.socket.write = (data) ->
             gotData = true
             msg = JSON.parse data
             assert msg?
@@ -241,7 +241,7 @@ module.exports = (env) ->
                   living: ["bookshelve"]
                 values:
                   state: "on"
-              pilightPlugin.client.emit 'data', JSON.stringify(msg) + "\n"
+              pilightPlugin.client.socket.emit 'data', JSON.stringify(msg) + "\n"
             , 1)
 
           pilightSwitch.turnOn().then( ->
@@ -254,7 +254,7 @@ module.exports = (env) ->
           pilightPlugin.config.timeout = 200
 
           gotData = false
-          pilightPlugin.client.write = (data) ->
+          pilightPlugin.client.socket.write = (data) ->
             gotData = true
             msg = JSON.parse data
             assert msg?
@@ -279,7 +279,7 @@ module.exports = (env) ->
             @saveConfigCalled = true
 
           gotData = false
-          pilightPlugin.client.write = (data) ->
+          pilightPlugin.client.socket.write = (data) ->
             gotData = true
             msg = JSON.parse data
             assert msg?
@@ -297,7 +297,7 @@ module.exports = (env) ->
                   living: ["bookshelve"]
                 values:
                   state: "off"
-              pilightPlugin.client.emit 'data', JSON.stringify(msg) + "\n"
+              pilightPlugin.client.socket.emit 'data', JSON.stringify(msg) + "\n"
             , 1)
 
           pilightSwitch.turnOff().then( ->
@@ -314,7 +314,7 @@ module.exports = (env) ->
       #       @saveConfigCalled = true
 
       #     gotData = false
-      #     pilightPlugin.client.write = (data) ->
+      #     pilightPlugin.client.socket.write = (data) ->
       #       gotData = true
       #       msg = JSON.parse data
       #       assert msg?
@@ -355,7 +355,7 @@ module.exports = (env) ->
       #       @saveConfigCalled = true
 
       #     gotData = false
-      #     pilightPlugin.client.write = (data) ->
+      #     pilightPlugin.client.socket.write = (data) ->
       #       gotData = true
       #       msg = JSON.parse data
       #       assert msg?
@@ -396,9 +396,9 @@ module.exports = (env) ->
             @saveConfigCalled = true
 
           gotData = false
-          pilightPlugin.client.write = (data) ->
+          pilightPlugin.client.socket.write = (data) ->
             gotData = true
-            pilightPlugin.client.write = (data) -> #nop
+            pilightPlugin.client.socket.write = (data) -> #nop
             msg = JSON.parse data
             assert msg?
             assert msg.message is 'send'
@@ -417,7 +417,7 @@ module.exports = (env) ->
                 values:
                   state: "off"
                   dimlevel: "3"
-              pilightPlugin.client.emit 'data', JSON.stringify(msg) + "\n"
+              pilightPlugin.client.socket.emit 'data', JSON.stringify(msg) + "\n"
             , 1)
 
           pilightDimmer.changeDimlevelTo(20).then( ->
@@ -432,7 +432,7 @@ module.exports = (env) ->
           pilightPlugin.config.timeout = 200
 
           gotData = false
-          pilightPlugin.client.write = (data) ->
+          pilightPlugin.client.socket.write = (data) ->
             gotData = true
             msg = JSON.parse data
             assert msg?

@@ -5,143 +5,80 @@ module.exports = (env) ->
   Q = env.require 'q'
   assert = env.require 'cassert'
   _ = env.require 'lodash'
+  events = env.require 'events'
 
-  EverSocket = env.EverSocket or require("eversocket").EverSocket
+  net = env.test?.net or require("net")
   SSDP = env.SSDP or require("node-ssdp-lite")
 
-  class PilightClient extends EverSocket
+  class PilightClient extends events.EventEmitter
 
-    buffer: ''
-
-    constructor: (options) ->
-      @_state = "unconnected"
-      @debug = options.debug
-      @enableHeartbeat = options.enableHeartbeat
-      @heartbeatInterval = options.heartbeatInterval
-      @heartbeatTimeoutTime = options.timeout
-      delete options.debug
-      delete options.enableHeartbeat
-      delete options.heartbeatInterval
-      super(options)
-
-
-      onConnect = =>
-        env.logger.info "connected to pilight-daemon"
-        @sendWelcome()
-        @startHeartbeat() if @enableHeartbeat
-
-      @on "end", =>
-        @_state = "unconnected"
-
-      @on "connect", onConnect
-      @on "reconnect", onConnect
-
-      @on "data", (data) =>
-        # https://github.com/pimatic/pimatic/issues/65
-        @buffer += data.toString().replace(/\0/g, '')
-        if @buffer[@buffer.length-2] is "\n" or @buffer[@buffer.length-1] is "\n"
-          messages = @buffer[..-2]
-          for msg in messages.split "\n"
-            if msg.length isnt 0
-              if msg is "BEAT"
-                @onBeat()
-              else
-                jsonMsg = null
-                try
-                  jsonMsg = JSON.parse msg
-                catch e
-                  env.logger.error "error parsing pilight response: #{e} in \"#{msg}\""
-                if jsonMsg? then @onReceive(jsonMsg)
-          @buffer = ''
+    constructor: (@config) ->
+      @debug = config.debug
 
       lastError = null
-
-      @on "error", (err) =>
-        if err.message? and lastError? and err.message is lastError.message
-          if @debug
-            env.logger.debug "supressed repeated error #{err}"
-            env.logger.debug err.stack
-        else
-          env.logger.error "Error on connection to pilight-daemon: #{err}"
-          env.logger.debug err.stack
-          lastError = err
-        this.reconnect()
-
-    sendWelcome: ->
-      @send { message: "client gui" }
-
-    send: (jsonMsg) ->
-      env.logger.debug("pilight send: ", JSON.stringify(jsonMsg, null, " ")) if @debug
-      @write JSON.stringify(jsonMsg) + "\n", 'utf8'
-      return true
-
-    onReceive: (jsonMsg) ->
-      env.logger.debug("pilight received: ", JSON.stringify(jsonMsg, null, " ")) if @debug
-      switch 
-        when jsonMsg.message is "accept client"
-          @_state = "connected"
-          @send { message: "request config" }
-        when jsonMsg.config?
-          @emit "config", jsonMsg
-        when jsonMsg.origin?
-          @emit "update", jsonMsg
-      return
-
-    startHeartbeat: ->
-      env.logger.debug "startHeartbeat", @heartbeatInterval
-      if @heartbeatTimeout
-        clearTimeout @heartbeatTimeout
-        delete @heartbeatTimeout
-
-      sendHeartbeat = =>
-        env.logger.debug("sending HEART to pilight-daemon") if @debug
-        try
-          @write "HEART\n", 'utf8'
-        catch e
-          env.logger.warn "Could not send heartbeat to pilight-daemon: #{e.message}"
-          @heartbeatTimeout = setTimeout(sendHeartbeat, @heartbeatInterval)
-
-        deferred = Q.defer()
-        # If we get a beat back then resolve the promise
-        @once 'beat', deferred.resolve
-        # and set a timeout:
-        promise = deferred.promise.timeout(
-          @heartbeatTimeoutTime, 
-          "heartbeat to pilight-daemon timedout after #{@heartbeatTimeoutTime}ms."
-        ).catch( (e) =>
-          env.logger.warn(e.message)
-        ).finally(=> 
-          # In case of a timeout and in case of an resolve, send next heartbeat
-          setTimeout(sendHeartbeat, @heartbeatInterval) 
+      createSocket = ( (options) =>
+        @socket = net.connect(options)
+        hadConnection = false
+        @socket.on('connect', onConnect = =>
+          hadConnection = true
+          env.logger.info "connected to pilight-daemon"
+          @sendWelcome()
+          @startHeartbeat() if @config.enableHeartbeat
         )
 
-      @heartbeatTimeout = setTimeout(sendHeartbeat, @heartbeatInterval)
+        buffer = ''
+        @socket.on("data", (data) =>
+          # https://github.com/pimatic/pimatic/issues/65
+          buffer += data.toString().replace(/\0/g, '')
+          if buffer[buffer.length-2] is "\n" or buffer[buffer.length-1] is "\n"
+            messages = buffer[..-2]
+            for msg in messages.split "\n"
+              if msg.length isnt 0
+                if msg is "BEAT"
+                  @onBeat()
+                else
+                  jsonMsg = null
+                  try
+                    jsonMsg = JSON.parse msg
+                  catch e
+                    env.logger.error "error parsing pilight response: #{e} in \"#{msg}\""
+                  if jsonMsg? then @onReceive(jsonMsg)
+            buffer = ''
+        )
 
-    onBeat: =>
-      env.logger.debug("got BEAT from pilight-daemon") if @debug
-      @emit "beat"
+        @socket.on("error", (err) =>
+          if err.message? and lastError? and err.message is lastError.message
+            if @debug
+              env.logger.debug "supressed repeated error #{err}"
+              env.logger.debug err.stack
+          else
+            env.logger.error "Error on connection to pilight-daemon: #{err}"
+            env.logger.debug err.stack
+            lastError = err
+        )
 
-
-
-  class PilightPlugin extends env.plugins.Plugin
-
-    init: (@app, @framework, @config) =>
-      conf = convict require("./pilight-config-schema")
-      conf.load config
-      conf.validate()
-      @config = conf.get ""
-
-      @client = new PilightClient(
-        reconnectWait: 10000
-        timeout: @config.timeout
-        debug: @config.debug
-        enableHeartbeat: @config.enableHeartbeat
-        heartbeatInterval: @config.heartbeatInterval
+        @socket.on('close', =>
+          env.logger.warn "Lost connection to pilight-daemon" if hadConnection
+          hadConnection = false
+          if @heartbeatTimeout
+            clearTimeout @heartbeatTimeout
+            delete @heartbeatTimeout
+        )
       )
       
       if @config.ssdp
         ssdpClient = new SSDP(log: true, logLevel: "error")
         ssdpPilightFound = false
+
+        searchSSDP = () =>
+          if ssdpPilightFound is not true
+            #searching for pilight ssdp
+            env.logger.info "pilight: trying to find pilight via SSDP"
+            ssdpClient.search "urn:schemas-upnp-org:service:pilight:1"
+            #try searching again in 5s
+            setTimeout(searchSSDP,5000)
+          else
+            env.logger.debug "pilight: skipping ssdp, already found pilight"
 
         ssdpClient.on "advertise-alive", inAdvertisement = (headers) =>
           #we got an ssdp notify
@@ -159,36 +96,109 @@ module.exports = (env) ->
             env.logger.info (
               "pilight: found pilight server #{hostValue}:#{portValue}, trying to connect"
             )
-            @client.connect(
-              portValue,
-              hostValue
+            createSocket(
+              port: portValue,
+              host: hostValue
             )
             ssdpPilightFound = true
+            @socket.on('close', =>
+              ssdpPilightFound = false
+              @socket.destroy()
+              @socket = null
+              searchSSDP()
+            )
           else
             env.logger.error "received port is not a number"
 
-        searchSSDP = () =>
-          if ssdpPilightFound is not true
-            #searching for pilight ssdp
-            env.logger.info "pilight: trying to find pilight via SSDP"
-            ssdpClient.search "urn:schemas-upnp-org:service:pilight:1"
-            #try searching again in 1s
-            setTimeout(searchSSDP,5000)
-          else
-            env.logger.debug "pilight: skipping ssdp, already found pilight"
-
         searchSSDP()
-
       else
         #not using ssdp, connectin normally
-        @client.connect(
-          @config.port,
-          @config.host
+        connectDirectly = =>
+          createSocket(
+            port: @config.port,
+            host: @config.host
+          )
+          @socket.on('close', =>
+            @socket.destroy()
+            @socket = null
+            setTimeout(connectDirectly, 10000)
+          )
+        connectDirectly()
+    sendWelcome: ->
+      @send { message: "client gui" }
+
+    send: (jsonMsg) ->
+      env.logger.debug("pilight send: ", JSON.stringify(jsonMsg, null, " ")) if @debug
+      if @socket?
+        @socket.write JSON.stringify(jsonMsg) + "\n", 'utf8'
+        return true
+      else
+        return false
+
+    onReceive: (jsonMsg) ->
+      env.logger.debug("pilight received: ", JSON.stringify(jsonMsg, null, " ")) if @debug
+      switch 
+        when jsonMsg.message is "accept client"
+          @send { message: "request config" }
+        when jsonMsg.config?
+          @emit "config", jsonMsg
+        when jsonMsg.origin?
+          @emit "update", jsonMsg
+      return
+
+    startHeartbeat: ->
+      env.logger.debug "startHeartbeat", @config.heartbeatInterval
+      if @heartbeatTimeout
+        clearTimeout @heartbeatTimeout
+        delete @heartbeatTimeout
+
+      sendHeartbeat = =>
+        env.logger.debug("sending HEART to pilight-daemon") if @debug
+        if @socket?
+          try
+            @socket.write("HEART\n", 'utf8')
+          catch e
+            env.logger.warn "Could not send heartbeat to pilight-daemon: #{e.message}"
+            @heartbeatTimeout = setTimeout(sendHeartbeat, @config.heartbeatInterval)
+        else
+          return
+        deferred = Q.defer()
+        # If we get a beat back then resolve the promise
+        @once 'beat', deferred.resolve
+        # and set a timeout:
+        promise = deferred.promise.timeout(
+          @config.timeout, 
+          "heartbeat to pilight-daemon timedout after #{@config.timeout}ms."
+        ).catch( (e) =>
+          env.logger.warn(e.message)
+        ).finally(=> 
+          # In case of a timeout and in case of an resolve, send next heartbeat
+          @heartbeatTimeout = setTimeout(sendHeartbeat, @config.heartbeatInterval) 
         )
+
+      @heartbeatTimeout = setTimeout(sendHeartbeat, @config.heartbeatInterval)
+
+    onBeat: =>
+      env.logger.debug("got BEAT from pilight-daemon") if @debug
+      @emit "beat"
+
+
+
+  class PilightPlugin extends env.plugins.Plugin
+
+    init: (@app, @framework, @config) =>
+      conf = convict require("./pilight-config-schema")
+      conf.load config
+      conf.validate()
+      @config = conf.get ""
+
+      @client = new PilightClient(@config)
+      
+
 
       @client.on "config", onReceiveConfig = (json) =>
         config = json.config
-        @pilightVersion = json.version[0].split('.')
+        @pilightVersion = json.version?[0].split('.')
         # iterate ´config = { living: { name: "Living", ... }, ...}´
         for location, devices of config
           #   location = "tv"
