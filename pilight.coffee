@@ -70,13 +70,14 @@ module.exports = (env) ->
         ssdpClient = new SSDP(log: true, logLevel: "error")
         ssdpPilightFound = false
 
-        searchSSDP = () =>
+        # only print search  message the first time
+        searchSSDP = (printSearchMessage = yes) =>
           if ssdpPilightFound is not true
             #searching for pilight ssdp
-            env.logger.info "pilight: trying to find pilight via SSDP"
+            env.logger.info "pilight: trying to find pilight via SSDP" if printSearchMessage
             ssdpClient.search "urn:schemas-upnp-org:service:pilight:1"
             #try searching again in 5s
-            setTimeout(searchSSDP,5000)
+            setTimeout((=> searchSSDP(no) ),5000)
           else
             env.logger.debug "pilight: skipping ssdp, already found pilight"
 
@@ -105,6 +106,7 @@ module.exports = (env) ->
               ssdpPilightFound = false
               @socket.destroy()
               @socket = null
+
               searchSSDP()
             )
           else
