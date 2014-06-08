@@ -6,6 +6,7 @@ module.exports = (env) ->
   assert = env.require 'cassert'
   _ = env.require 'lodash'
   events = env.require 'events'
+  t = env.require('decl-api').types
 
   net = env.test?.net or require("net")
   SSDP = env.SSDP or require("node-ssdp-lite")
@@ -621,7 +622,7 @@ module.exports = (env) ->
         @attributes = _.clone @attributes
         @attributes.humidity =
           description: "the messured humidity"
-          type: Number
+          type: t.number
           unit: '%'
       super()
       plugin.on "update #{@id}", (msg) =>
