@@ -197,8 +197,6 @@ module.exports = (env) ->
 
       @client = new PilightClient(@config)
       
-
-
       @client.on "config", onReceiveConfig = (json) =>
         config = json.config
         @pilightVersion = json.version?[0].split('.')
@@ -222,6 +220,45 @@ module.exports = (env) ->
               id = "pilight-#{location}-#{device}"  
               @emit "update #{id}", jsonMsg
         return
+
+      handleLegacyConfig = (config) =>
+        if config.settings
+          # TemperatureSensor
+          if config.settings.temperature?
+            config.hasTemperature = !!(config.settings.temperature)
+          if config.settings.humidity?
+            config.hasHumidity = !!(config.settings.humidity)
+          if config.settings.decimals?
+            config.deviceDecimals = parseInt(config.settings.decimals, 10)
+          # Dimmer
+          if config.settings.min?
+            config.minDimlevel = parseInt(config.settings.min, 10)
+          else
+            config.minDimlevel = 0
+          if config.settings.max?
+            config.maxDimlevel = parseInt(config.settings.max, 10)
+          else
+            config.maxDimlevel = 15
+          # Delete settings
+          delete config.settings
+
+      deviceConfigDef = require("./device-config-schema")
+
+      deviceClasses = [
+        PilightSwitch,
+        PilightDimmer, 
+        PilightTemperatureSensor, 
+        PilightShutter, 
+        PilightContact
+      ]
+
+      for Cl in deviceClasses
+        do (Cl) =>
+          @framework.registerDeviceClass(Cl.name, {
+            prepareConfig: handleLegacyConfig
+            configDef: deviceConfigDef[Cl.name]
+            createCallback: (config) => new Cl(config)
+          })
 
     handleDeviceInConfig: (id, deviceProbs) =>
       getClassFromType = (deviceProbs) =>
@@ -323,50 +360,6 @@ module.exports = (env) ->
       return deferred.promise
 
     createDevice: (config) =>
-
-      handleLegacyConfig = (config) =>
-        if config.settings
-          # TemperatureSensor
-          if config.settings.temperature?
-            config.hasTemperature = !!(config.settings.temperature)
-          if config.settings.humidity?
-            config.hasHumidity = !!(config.settings.humidity)
-          if config.settings.decimals?
-            config.deviceDecimals = parseInt(config.settings.decimals, 10)
-          # Dimmer
-          if config.settings.min?
-            config.minDimlevel = parseInt(config.settings.min, 10)
-          else
-            config.minDimlevel = 0
-          if config.settings.max?
-            config.maxDimlevel = parseInt(config.settings.max, 10)
-          else
-            config.maxDimlevel = 15
-          # Delete settings
-          delete config.settings
-
-      return switch config.class
-        when 'PilightSwitch'
-          handleLegacyConfig(config)
-          @framework.registerDevice new PilightSwitch config
-          true
-        when 'PilightDimmer'
-          handleLegacyConfig(config)
-          @framework.registerDevice new PilightDimmer config
-          true
-        when 'PilightTemperatureSensor'
-          handleLegacyConfig(config)
-          @framework.registerDevice new PilightTemperatureSensor config
-          true
-        when 'PilightShutter'
-          handleLegacyConfig(config)
-          @framework.registerDevice new PilightShutter config
-          true
-        when 'PilightContact'
-          handleLegacyConfig(config)
-          @framework.registerDevice new PilightContact config
-          true
-        else false
 
   plugin = new PilightPlugin
 
