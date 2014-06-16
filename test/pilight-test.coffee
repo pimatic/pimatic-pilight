@@ -1,5 +1,6 @@
 module.exports = (env) ->
 
+  sinon = env.require 'sinon'
   assert = env.require "cassert"
   proxyquire = env.require 'proxyquire'
   Q = env.require 'q'
@@ -19,7 +20,9 @@ module.exports = (env) ->
 
     pilightPlugin = require('pimatic-pilight') env
 
-    framework = {}
+    framework = {
+      registerDeviceClass: sinon.spy()
+    }
     pilightSwitch = null
     pilightDimmer = null
     pilightTemperatureSensor = null
