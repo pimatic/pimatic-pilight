@@ -1,7 +1,6 @@
 module.exports = (env) ->
   util = require 'util'
 
-  convict = env.require "convict"
   Q = env.require 'q'
   assert = env.require 'cassert'
   _ = env.require 'lodash'
@@ -190,10 +189,6 @@ module.exports = (env) ->
   class PilightPlugin extends env.plugins.Plugin
 
     init: (@app, @framework, @config) =>
-      conf = convict require("./pilight-config-schema")
-      conf.load config
-      conf.validate()
-      @config = conf.get ""
 
       @client = new PilightClient(@config)
       

@@ -15,6 +15,7 @@
     "type": "git",
     "url": "git://github.com/pimatic/pimatic-pilight.git"
   },
+  "configSchema": "pilight-config-schema.coffee",
   "dependencies": {
     "node-ssdp-lite":"0.2.0"
   },
