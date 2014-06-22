@@ -4,6 +4,7 @@ module.exports = (env) ->
   assert = env.require "cassert"
   proxyquire = env.require 'proxyquire'
   Q = env.require 'q'
+  declapi = env.require 'decl-api'
 
   describe "pimatic-pilight", ->
 
@@ -21,7 +22,23 @@ module.exports = (env) ->
     pilightPlugin = require('pimatic-pilight') env
 
     framework = {
-      registerDeviceClass: sinon.spy()
+      deviceClasses: {}
+      registerDeviceClass: (name, op) -> @deviceClasses[name] = op
+      addDeviceByConfig: (deviceConfig) ->
+        classInfo = @deviceClasses[deviceConfig.class]
+        unless classInfo?
+          throw new Error("Unknown device class \"#{deviceConfig.class}\"")
+        warnings = []
+        classInfo.prepareConfig(deviceConfig) if classInfo.prepareConfig?
+        declapi.checkConfig(classInfo.configDef.properties, deviceConfig, warnings)
+        for w in warnings
+          env.logger.warn("Device configuration of #{deviceConfig.id}: #{w}")
+        deviceConfig = declapi.enhanceJsonSchemaWithDefaults(classInfo.configDef, deviceConfig)
+        device = classInfo.createCallback(deviceConfig)
+        @addDeviceToConfig(deviceConfig)
+        @registerDevice(device)
+        @saveConfig()
+        return device
     }
     pilightSwitch = null
     pilightDimmer = null
@@ -30,10 +47,15 @@ module.exports = (env) ->
     describe "PilightPlugin", ->
       describe '#init()', ->
         it "should connect", ->
-          pilightPlugin.init null, framework, 
+          schema = require('../pilight-config-schema')
+          pluginConfig = declapi.enhanceJsonSchemaWithDefaults(schema, {
             timeout: 1000
             debug: false
             ssdp: no
+            host: 'localhost'
+            port: 123
+          });
+          pilightPlugin.init(null, framework, pluginConfig)
           assert env.test.net.connectCalled
           
         it "should send welcome", ->
@@ -155,8 +177,6 @@ module.exports = (env) ->
           framework.saveConfigCalled = false
           framework.saveConfig = () ->
             @saveConfigCalled = true
-            assert pilightDimmer._dimlevel is 65 # 15 => 100% so 10 => 65%
-            assert pilightDimmer._state is on
 
           pilightPlugin.client.socket.emit 'data', JSON.stringify(sampleConfigMsg) + '\n'
 
@@ -164,6 +184,9 @@ module.exports = (env) ->
           assert framework.registerDeviceCalled
           assert framework.addDeviceToConfigCalled
           assert framework.saveConfigCalled
+
+          assert pilightDimmer._dimlevel is 65 # 15 => 100% so 10 => 65%
+          assert pilightDimmer._state is on
 
         it "should create a PilightTemperatureSensor", ->
           sampleConfigMsg =
@@ -180,6 +203,8 @@ module.exports = (env) ->
                 battery: 0
                 settings: 
                   decimals: 2
+                  temperature: 1
+                  humidity: 0
             version: [
               "2.0"
               "2.0"
@@ -209,8 +234,6 @@ module.exports = (env) ->
           framework.saveConfigCalled = false
           framework.saveConfig = () ->
             @saveConfigCalled = true
-            assert pilightTemperatureSensor.temperature is 23
-            assert pilightTemperatureSensor.humidity is 76
 
           pilightPlugin.client.socket.emit 'data', JSON.stringify(sampleConfigMsg) + '\n'
 
@@ -218,6 +241,9 @@ module.exports = (env) ->
           assert framework.registerDeviceCalled
           assert framework.addDeviceToConfigCalled
           assert framework.saveConfigCalled
+
+          assert pilightTemperatureSensor.temperature is 23
+          assert pilightTemperatureSensor.humidity is 76
 
     describe "PilightSwitch", ->  
       describe "#turnOn()", ->

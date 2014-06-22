@@ -291,9 +291,13 @@ module.exports = (env) ->
       if deviceProbs.settings?.humidity or deviceProbs['gui-show-humidity'] #old and new
         config.hasHumidity = yes
         deviceProbs['gui-show-humidity'] = yes
+      else  if deviceProbs.settings?.humidity is 0 or deviceProbs['gui-show-humidity']?
+        config.hasHumidity = no
       if deviceProbs.settings?.temperature or deviceProbs['gui-show-temperature'] #old and new
         config.hasTemperature = yes
         deviceProbs['gui-show-temperature'] = yes
+      else if deviceProbs.settings?.temperature is 0 or deviceProbs['gui-show-temperature']?
+        config.hasTemperature = no
       if deviceProbs.settings?.decimals? #old
         config.deviceDecimals = parseInt(deviceProbs.settings.decimals, 10)
         deviceProbs['device-decimals'] = config.deviceDecimals
@@ -321,10 +325,8 @@ module.exports = (env) ->
         unless actuator instanceof Class
           env.logger.error "expected #{id} to be an #{ClassName}"
           return
-      else 
-        actuator = new Class config
-        @framework.registerDevice actuator
-        @framework.addDeviceToConfig config
+      else
+        actuator = @framework.addDeviceByConfig config
       actuator.updateFromPilightConfig deviceProbs
 
 

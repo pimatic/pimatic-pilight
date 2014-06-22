@@ -4,7 +4,8 @@ module.exports = {
   type: "object"
   properties:
     host:
-      description: "The ip or host to connect to the piligt-daemon, you must disabled ssdp to use this."
+      description: "The ip or host to connect to the piligt-daemon, you must disabled ssdp to 
+      use this."
       type: "string"
       default: "127.0.0.1"
     port:
@@ -25,9 +26,8 @@ module.exports = {
       type: "boolean"
       default: true
     enableHeartbeat:
-      description: """if enabled pimatic sends a heatbeat in the defined interval to check if the connection
-        to the pilight-daemon is still alive.
-        """
+      description: """if enabled pimatic sends a heatbeat in the defined interval to check if the 
+        connection to the pilight-daemon is still alive."""
       type: "boolean"
       default: true
     heartbeatInterval:
