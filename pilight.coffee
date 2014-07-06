@@ -10,7 +10,23 @@ module.exports = (env) ->
   net = env.test?.net or require("net")
   SSDP = env.SSDP or require("node-ssdp-lite")
 
+  PilightDevieTypes = {
+    RAW: 0
+    SWITCH: 1
+    DIMMER: 2
+    WEATHER: 3
+    RELAY: 4
+    SCREEN: 5
+    CONTACT: 6
+    PENDINGSW: 7
+    DATETIME: 8
+    XMBC: 9
+    LIRC: 10
+    WEBCAM: 11
+  }
+
   class PilightClient extends events.EventEmitter
+
 
     constructor: (@config) ->
       @debug = config.debug
@@ -216,27 +232,6 @@ module.exports = (env) ->
               @emit "update #{id}", jsonMsg
         return
 
-      handleLegacyConfig = (config) =>
-        if config.settings
-          # TemperatureSensor
-          if config.settings.temperature?
-            config.hasTemperature = !!(config.settings.temperature)
-          if config.settings.humidity?
-            config.hasHumidity = !!(config.settings.humidity)
-          if config.settings.decimals?
-            config.deviceDecimals = parseInt(config.settings.decimals, 10)
-          # Dimmer
-          if config.settings.min?
-            config.minDimlevel = parseInt(config.settings.min, 10)
-          else
-            config.minDimlevel = 0
-          if config.settings.max?
-            config.maxDimlevel = parseInt(config.settings.max, 10)
-          else
-            config.maxDimlevel = 15
-          # Delete settings
-          delete config.settings
-
       deviceConfigDef = require("./device-config-schema")
 
       deviceClasses = [
@@ -250,29 +245,29 @@ module.exports = (env) ->
       for Cl in deviceClasses
         do (Cl) =>
           @framework.registerDeviceClass(Cl.name, {
-            prepareConfig: handleLegacyConfig
             configDef: deviceConfigDef[Cl.name]
             createCallback: (config) => new Cl(config)
           })
 
     handleDeviceInConfig: (id, deviceProbs) =>
       getClassFromType = (deviceProbs) =>
+        PDT = PilightDevieTypes
         switch deviceProbs.type
-          when 1, 4
+          when PDT.SWITCH, PDT.CONTACT
             isContact = (
               deviceProbs.settings?.states is "opened,closed" or 
               deviceProbs.state in ['closed', 'opened']
             )
             if isContact
-              [PilightContact, "PilightContact"]
+              PilightContact
             else
-              [PilightSwitch, "PilightSwitch"]
-          when 2 then [PilightDimmer, "PilightDimmer"]
-          when 3 then [PilightTemperatureSensor, "PilightTemperatureSensor"]
-          when 5 then [PilightShutter, "PilightShutter"]
-          else [null, null]
+              PilightSwitch
+          when PDT.DIMMER then PilightDimmer
+          when PDT.WEATHER then PilightTemperatureSensor
+          when PDT.SCREEN then PilightShutter
+          else null
 
-      [Class, ClassName] = getClassFromType deviceProbs
+      Class = getClassFromType deviceProbs
       unless Class?
         env.logger.warn "Unimplemented pilight device type: #{deviceProbs.type}" 
         return
@@ -280,50 +275,53 @@ module.exports = (env) ->
       config = {
         id: id
         name: deviceProbs.name
-        class: ClassName
+        class: Class.name
         inPilightConfig: true
         location: deviceProbs.location
         device: deviceProbs.device
       }
       # do some remapping for properites:
       # http://wiki.pilight.org/doku.php/changes_features_fixes?rev=1396735707
-      # Temperature devices:
-      if deviceProbs.settings?.humidity or deviceProbs['gui-show-humidity'] #old and new
-        config.hasHumidity = yes
-        deviceProbs['gui-show-humidity'] = yes
-      else  if deviceProbs.settings?.humidity is 0 or deviceProbs['gui-show-humidity']?
-        config.hasHumidity = no
-      if deviceProbs.settings?.temperature or deviceProbs['gui-show-temperature'] #old and new
-        config.hasTemperature = yes
-        deviceProbs['gui-show-temperature'] = yes
-      else if deviceProbs.settings?.temperature is 0 or deviceProbs['gui-show-temperature']?
-        config.hasTemperature = no
-      if deviceProbs.settings?.decimals? #old
-        config.deviceDecimals = parseInt(deviceProbs.settings.decimals, 10)
-        deviceProbs['device-decimals'] = config.deviceDecimals
-      if deviceProbs['device-decimals']? #new
-        config.deviceDecimals = deviceProbs['device-decimals']
-      # Dimmer devices
-      if deviceProbs.min? #old
-        config.minDimlevel = parseInt(deviceProbs.min, 10)
-      if deviceProbs.settings?.min? #old
-        config.minDimlevel = parseInt(deviceProbs.settings.min, 10)
-        deviceProbs['dimlevel-minimum'] = config.minDimlevel
-      if deviceProbs['dimlevel-minimum']? #new
-        config.minDimlevel = parseInt(deviceProbs['dimlevel-minimum'], 10)
-
-      if deviceProbs.max? #old
-        config.maxDimlevel = parseInt(deviceProbs.max, 10)
-      if deviceProbs.settings?.max? #old
-        config.maxDimlevel = parseInt(deviceProbs.settings.max, 10)
-        deviceProbs['dimlevel-maximum'] = config.maxDimlevel
-      if deviceProbs['dimlevel-maximum']? #new
-        config.maxDimlevel = parseInt(deviceProbs['dimlevel-maximum'], 10)
+      PDT = PilightDevieTypes
+      switch deviceProbs.type
+        when PDT.WEATHER
+          # Temperature devices:
+          if deviceProbs.settings?.humidity or deviceProbs['gui-show-humidity'] #old and new
+            config.hasHumidity = yes
+            deviceProbs['gui-show-humidity'] = yes
+          else
+            config.hasHumidity = no
+          if deviceProbs.settings?.temperature or deviceProbs['gui-show-temperature'] #old and new
+            config.hasTemperature = yes
+            deviceProbs['gui-show-temperature'] = yes
+          else
+            config.hasTemperature = no
+          if deviceProbs.settings?.decimals? #old
+            config.deviceDecimals = parseInt(deviceProbs.settings.decimals, 10)
+            deviceProbs['device-decimals'] = config.deviceDecimals
+          if deviceProbs['device-decimals']? #new
+            config.deviceDecimals = deviceProbs['device-decimals']
+        when PDT.DIMMER
+          # Dimmer devices
+          if deviceProbs.min? #old
+            config.minDimlevel = parseInt(deviceProbs.min, 10)
+          if deviceProbs.settings?.min? #old
+            config.minDimlevel = parseInt(deviceProbs.settings.min, 10)
+            deviceProbs['dimlevel-minimum'] = config.minDimlevel
+          if deviceProbs['dimlevel-minimum']? #new
+            config.minDimlevel = parseInt(deviceProbs['dimlevel-minimum'], 10)
+          if deviceProbs.max? #old
+            config.maxDimlevel = parseInt(deviceProbs.max, 10)
+          if deviceProbs.settings?.max? #old
+            config.maxDimlevel = parseInt(deviceProbs.settings.max, 10)
+            deviceProbs['dimlevel-maximum'] = config.maxDimlevel
+          if deviceProbs['dimlevel-maximum']? #new
+            config.maxDimlevel = parseInt(deviceProbs['dimlevel-maximum'], 10)
 
       actuator = @framework.getDeviceById id
       if actuator?
         unless actuator instanceof Class
-          env.logger.error "expected #{id} to be an #{ClassName}"
+          env.logger.error "expected #{id} to be an #{Class.name}"
           return
       else
         actuator = @framework.addDeviceByConfig config
@@ -624,8 +622,8 @@ module.exports = (env) ->
     updateFromPilightConfig: (probs) ->
       @name = probs.name
       @config.deviceDecimals = probs['device-decimals'] if probs['device-decimals']?
-      @config.hasHumidity = (probs['gui-show-humidity'] is yes)
-      @config.hasTemperature = (probs['gui-show-temperature'] is yes)
+      @config.hasHumidity = (!!probs['gui-show-humidity'])
+      @config.hasTemperature = (!!probs['gui-show-temperature'])
       @setValues
         temperature: probs.temperature
         humidity: probs.humidity
