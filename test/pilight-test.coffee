@@ -3,7 +3,7 @@ module.exports = (env) ->
   sinon = env.require 'sinon'
   assert = env.require "cassert"
   proxyquire = env.require 'proxyquire'
-  Q = env.require 'q'
+  Promise = env.require 'bluebird'
   declapi = env.require 'decl-api'
 
   describe "pimatic-pilight", ->

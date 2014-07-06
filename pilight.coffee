@@ -1,7 +1,7 @@
 module.exports = (env) ->
   util = require 'util'
 
-  Q = env.require 'q'
+  Promise = env.require 'bluebird'
   assert = env.require 'cassert'
   _ = env.require 'lodash'
   events = env.require 'events'
@@ -164,11 +164,11 @@ module.exports = (env) ->
             @heartbeatTimeout = setTimeout(sendHeartbeat, @config.heartbeatInterval)
         else
           return
-        deferred = Q.defer()
-        # If we get a beat back then resolve the promise
-        @once 'beat', deferred.resolve
-        # and set a timeout:
-        promise = deferred.promise.timeout(
+        new Promise( (resolve, reject) =>
+          # If we get a beat back then resolve the promise
+          @once 'beat', resolve
+          # and set a timeout:
+        ).timeout(
           @config.timeout, 
           "heartbeat to pilight-daemon timedout after #{@config.timeout}ms."
         ).catch( (e) =>
@@ -176,7 +176,7 @@ module.exports = (env) ->
         ).finally(=> 
           # In case of a timeout and in case of an resolve, send next heartbeat
           @heartbeatTimeout = setTimeout(sendHeartbeat, @config.heartbeatInterval) 
-        )
+        ).done()
 
       @heartbeatTimeout = setTimeout(sendHeartbeat, @config.heartbeatInterval)
 
@@ -331,30 +331,30 @@ module.exports = (env) ->
 
 
     sendState: (id, jsonMsg, expectAck = yes) ->
-      deferred = Q.defer()
-      success = @client.send jsonMsg
-      if success
-        if expectAck
-          # We wait for a feedback of pilight
-          event = "update #{id}"
-          onStateCallback = null
-          # register a timeout if we dont get a awnser from pilight-daemon
-          onTimeout = => 
-            @removeListener event, onStateCallback
-            deferred.reject new Error "Request to pilight-daemon timeout"
-            return
-          receiveTimeout = setTimeout onTimeout, @config.timeout
-          # if we get a awnser this function get called:
-          onStateCallback = (state) =>
-            clearTimeout receiveTimeout
-            @removeListener event, onStateCallback
-            deferred.resolve()
-          @on event, onStateCallback
+      return new Promise( (resolve, reject) => 
+        success = @client.send jsonMsg
+        if success
+          if expectAck
+            # We wait for a feedback of pilight
+            event = "update #{id}"
+            onStateCallback = null
+            # register a timeout if we dont get a awnser from pilight-daemon
+            onTimeout = => 
+              @removeListener event, onStateCallback
+              reject new Error "Request to pilight-daemon timeout"
+              return
+            receiveTimeout = setTimeout onTimeout, @config.timeout
+            # if we get a awnser this function get called:
+            onStateCallback = (state) =>
+              clearTimeout receiveTimeout
+              @removeListener event, onStateCallback
+              resolve()
+            @on event, onStateCallback
+          else
+            resolve()
         else
-          deferred.resolve()
-      else
-        deferred.reject new Error "Could not send request to pilight-daemon"
-      return deferred.promise
+          reject new Error "Could not send request to pilight-daemon"
+      )
 
     createDevice: (config) =>
 
@@ -479,7 +479,7 @@ module.exports = (env) ->
       )
 
     stop: () ->
-      if @_position is 'stopped' then return Q()
+      if @_position is 'stopped' then return Promise.resolve()
       jsonMsg = {
         message: "send"
         code:
@@ -562,7 +562,7 @@ module.exports = (env) ->
         }
         result2 = plugin.sendState(@id, jsonMsg, no)
 
-      return if result2? then Q.all([result1, result2]) else result1
+      return if result2? then Promise.all([result1, result2]) else result1
     updateFromPilightConfig: (probs) ->
       assert probs?
       assert probs.dimlevel?
@@ -674,8 +674,8 @@ module.exports = (env) ->
       plugin.framework.saveConfig()
       return
 
-    getTemperature: -> Q(@temperature)
-    getHumidity: -> Q(@humidity)
+    getTemperature: -> Promise.resolve(@temperature)
+    getHumidity: -> Promise.resolve(@humidity)
 
   # For testing...
   plugin.PilightSwitch = PilightSwitch
