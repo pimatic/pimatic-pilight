@@ -244,7 +244,7 @@ module.exports = (env) ->
 
       for Cl in deviceClasses
         do (Cl) =>
-          @framework.registerDeviceClass(Cl.name, {
+          @framework.deviceManager.registerDeviceClass(Cl.name, {
             configDef: deviceConfigDef[Cl.name]
             createCallback: (config) => new Cl(config)
           })
@@ -318,13 +318,13 @@ module.exports = (env) ->
           if deviceProbs['dimlevel-maximum']? #new
             config.maxDimlevel = parseInt(deviceProbs['dimlevel-maximum'], 10)
 
-      actuator = @framework.getDeviceById id
+      actuator = @framework.deviceManager.getDeviceById id
       if actuator?
         unless actuator instanceof Class
           env.logger.error "expected #{id} to be an #{Class.name}"
           return
       else
-        actuator = @framework.addDeviceByConfig config
+        actuator = @framework.deviceManager.addDeviceByConfig config
       actuator.updateFromPilightConfig deviceProbs
 
 

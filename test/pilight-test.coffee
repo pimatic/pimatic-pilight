@@ -21,7 +21,8 @@ module.exports = (env) ->
 
     pilightPlugin = require('pimatic-pilight') env
 
-    framework = {
+    framework = {}
+    framework.deviceManager = {
       deviceClasses: {}
       registerDeviceClass: (name, op) -> @deviceClasses[name] = op
       addDeviceByConfig: (deviceConfig) ->
@@ -37,7 +38,7 @@ module.exports = (env) ->
         device = classInfo.createCallback(deviceConfig)
         @addDeviceToConfig(deviceConfig)
         @registerDevice(device)
-        @saveConfig()
+        framework.saveConfig()
         return device
     }
     pilightSwitch = null
@@ -101,14 +102,14 @@ module.exports = (env) ->
               "2.0"
             ]
 
-          framework.getDeviceByIdCalled = false
-          framework.getDeviceById = (id) ->
+          framework.deviceManager.getDeviceByIdCalled = false
+          framework.deviceManager.getDeviceById = (id) ->
             assert id is "pilight-living-bookshelve"
             @getDeviceByIdCalled = true
             return null
 
-          framework.registerDeviceCalled = false
-          framework.registerDevice = (device) ->
+          framework.deviceManager.registerDeviceCalled = false
+          framework.deviceManager.registerDevice = (device) ->
             @registerDeviceCalled = true
             assert device?
             assert device instanceof pilightPlugin.PilightSwitch
@@ -117,21 +118,21 @@ module.exports = (env) ->
             assert pilightSwitch.config.device is "bookshelve"
             assert pilightSwitch.config.location is "living"
 
-          framework.addDeviceToConfigCalled = false
-          framework.addDeviceToConfig = (config) ->
+          framework.deviceManager.addDeviceToConfigCalled = false
+          framework.deviceManager.addDeviceToConfig = (config) ->
             @addDeviceToConfigCalled = true
             assert config?
 
-          framework.saveConfigCalled = false
+          framework.deviceManager.saveConfigCalled = false
           framework.saveConfig = () ->
             @saveConfigCalled = true
             assert pilightSwitch._state is false
 
           pilightPlugin.client.socket.emit 'data', JSON.stringify(sampleConfigMsg) + '\n'
 
-          assert framework.getDeviceByIdCalled
-          assert framework.registerDeviceCalled
-          assert framework.addDeviceToConfigCalled
+          assert framework.deviceManager.getDeviceByIdCalled
+          assert framework.deviceManager.registerDeviceCalled
+          assert framework.deviceManager.addDeviceToConfigCalled
           assert framework.saveConfigCalled
 
         it "should create a PilightDimmer", ->
@@ -153,14 +154,14 @@ module.exports = (env) ->
               "2.0"
             ]
 
-          framework.getDeviceByIdCalled = false
-          framework.getDeviceById = (id) ->
+          framework.deviceManager.getDeviceByIdCalled = false
+          framework.deviceManager.getDeviceById = (id) ->
             assert id is "pilight-living-dimmer"
             @getDeviceByIdCalled = true
             return null
 
-          framework.registerDeviceCalled = false
-          framework.registerDevice = (device) ->
+          framework.deviceManager.registerDeviceCalled = false
+          framework.deviceManager.registerDevice = (device) ->
             @registerDeviceCalled = true
             assert device?
             assert device instanceof pilightPlugin.PilightDimmer
@@ -169,8 +170,8 @@ module.exports = (env) ->
             assert pilightDimmer.config.device is "dimmer"
             assert pilightDimmer.config.location is "living"
 
-          framework.addDeviceToConfigCalled = false
-          framework.addDeviceToConfig = (config) ->
+          framework.deviceManager.addDeviceToConfigCalled = false
+          framework.deviceManager.addDeviceToConfig = (config) ->
             @addDeviceToConfigCalled = true
             assert config?
 
@@ -180,9 +181,9 @@ module.exports = (env) ->
 
           pilightPlugin.client.socket.emit 'data', JSON.stringify(sampleConfigMsg) + '\n'
 
-          assert framework.getDeviceByIdCalled
-          assert framework.registerDeviceCalled
-          assert framework.addDeviceToConfigCalled
+          assert framework.deviceManager.getDeviceByIdCalled
+          assert framework.deviceManager.registerDeviceCalled
+          assert framework.deviceManager.addDeviceToConfigCalled
           assert framework.saveConfigCalled
 
           assert pilightDimmer._dimlevel is 65 # 15 => 100% so 10 => 65%
@@ -210,14 +211,14 @@ module.exports = (env) ->
               "2.0"
             ]
 
-          framework.getDeviceByIdCalled = false
-          framework.getDeviceById = (id) ->
+          framework.deviceManager.getDeviceByIdCalled = false
+          framework.deviceManager.getDeviceById = (id) ->
             assert id is "pilight-living-weather"
             @getDeviceByIdCalled = true
             return null
 
-          framework.registerDeviceCalled = false
-          framework.registerDevice = (device) ->
+          framework.deviceManager.registerDeviceCalled = false
+          framework.deviceManager.registerDevice = (device) ->
             @registerDeviceCalled = true
             assert device?
             assert device instanceof pilightPlugin.PilightTemperatureSensor
@@ -226,8 +227,8 @@ module.exports = (env) ->
             assert pilightTemperatureSensor.config.device is "weather"
             assert pilightTemperatureSensor.config.location is "living"
 
-          framework.addDeviceToConfigCalled = false
-          framework.addDeviceToConfig = (config) ->
+          framework.deviceManager.addDeviceToConfigCalled = false
+          framework.deviceManager.addDeviceToConfig = (config) ->
             @addDeviceToConfigCalled = true
             assert config?
 
@@ -237,9 +238,9 @@ module.exports = (env) ->
 
           pilightPlugin.client.socket.emit 'data', JSON.stringify(sampleConfigMsg) + '\n'
 
-          assert framework.getDeviceByIdCalled
-          assert framework.registerDeviceCalled
-          assert framework.addDeviceToConfigCalled
+          assert framework.deviceManager.getDeviceByIdCalled
+          assert framework.deviceManager.registerDeviceCalled
+          assert framework.deviceManager.addDeviceToConfigCalled
           assert framework.saveConfigCalled
 
           assert pilightTemperatureSensor.temperature is 23
