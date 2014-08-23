@@ -253,7 +253,7 @@ module.exports = (env) ->
       getClassFromType = (deviceProbs) =>
         PDT = PilightDevieTypes
         switch deviceProbs.type
-          when PDT.SWITCH, PDT.CONTACT
+          when PDT.SWITCH, PDT.CONTACT, PDT.RELAY
             isContact = (
               deviceProbs.settings?.states is "opened,closed" or 
               deviceProbs.state in ['closed', 'opened']
