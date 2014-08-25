@@ -394,7 +394,10 @@ module.exports = (env) ->
 
     updateFromPilightConfig: (probs) ->
       assert probs?
-      @name = probs.name
+      if @name isnt probs.name
+        @name = probs.name
+        @config.name = probs.name
+        plugin.framework.saveConfig()
       @_setState (if probs.state is 'on' then on else off)
 
     _setState: (state) ->
@@ -431,7 +434,10 @@ module.exports = (env) ->
 
     updateFromPilightConfig: (probs) ->
       assert probs?
-      @name = probs.name
+      if @name isnt probs.name
+        @name = probs.name
+        @config.name = probs.name
+        plugin.framework.saveConfig()
       @_setContact (if probs.state is 'closed' then on else off)
 
 
@@ -491,7 +497,10 @@ module.exports = (env) ->
 
     updateFromPilightConfig: (probs) ->
       assert probs?
-      @name = probs.name
+      if @name isnt probs.name
+        @name = probs.name
+        @config.name = probs.name
+        plugin.framework.saveConfig()
       @_setPosition(probs.state)
       @_lastPilightPosition = probs.state
 
@@ -566,6 +575,10 @@ module.exports = (env) ->
       assert probs.dimlevel?
       @config.minDimlevel = probs['dimlevel-minimum'] if probs['dimlevel-minimum']?
       @config.maxDimlevel = probs['dimlevel-maximum'] if probs['dimlevel-maximum']?
+      if @name isnt probs.name
+        @name = probs.name
+        @config.name = probs.name
+        plugin.framework.saveConfig()
       probs.dimlevel = parseFloat(probs.dimlevel)
       assert not isNaN(probs.dimlevel)
       @_lastPilightDimlevel = probs.dimlevel
@@ -620,7 +633,10 @@ module.exports = (env) ->
         @setValues msg.values
 
     updateFromPilightConfig: (probs) ->
-      @name = probs.name
+      if @name isnt probs.name
+        @name = probs.name
+        @config.name = probs.name
+        plugin.framework.saveConfig()
       @config.deviceDecimals = probs['device-decimals'] if probs['device-decimals']?
       @config.hasHumidity = (!!probs['gui-show-humidity'])
       @config.hasTemperature = (!!probs['gui-show-temperature'])
