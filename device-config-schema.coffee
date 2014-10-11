@@ -3,6 +3,7 @@ module.exports = {
   PilightSwitch: {
     title: "PilightSwitch config options"
     type: "object"
+    extensions: ["xConfirm", "xLink", "xOnLabel", "xOffLabel"]
     properties:
       inPilightConfig:
         description: ""
@@ -29,6 +30,7 @@ module.exports = {
   PilightDimmer: {
     title: "PilightDimmer config options"
     type: "object"
+    extensions: ["xLink"]
     properties:
       inPilightConfig:
         description: ""
@@ -65,6 +67,7 @@ module.exports = {
   PilightTemperatureSensor: {
     title: "PilightTemperatureSensor config options"
     type: "object"
+    extensions: ["xLink"]
     properties:
       inPilightConfig:
         description: ""
@@ -112,6 +115,7 @@ module.exports = {
   PilightShutter: {
     title: "PilightShutter config options"
     type: "object"
+    extensions: ["xLink"]
     properties:
       inPilightConfig:
         description: ""
@@ -138,6 +142,7 @@ module.exports = {
   PilightContact: {
     title: "PilightContact config options"
     type: "object"
+    extensions: ["xLink"]
     properties:
       inPilightConfig:
         description: ""

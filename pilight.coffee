@@ -71,6 +71,7 @@ module.exports = (env) ->
             env.logger.error "Error on connection to pilight-daemon: #{err}"
             env.logger.debug err.stack
             lastError = err
+          return
         )
 
         @socket.on('close', =>
