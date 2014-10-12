@@ -27,10 +27,10 @@ module.exports = (env) ->
 
   class PilightClient extends events.EventEmitter
 
-
     constructor: (@config) ->
       @debug = config.debug
 
+    connect: ->
       lastError = null
       createSocket = ( (options) =>
         @socket = net.connect(options)
@@ -143,6 +143,7 @@ module.exports = (env) ->
             setTimeout(connectDirectly, 10000)
           )
         connectDirectly()
+
     sendWelcome: ->
       @send { message: "client gui" }
 
@@ -208,7 +209,11 @@ module.exports = (env) ->
     init: (@app, @framework, @config) =>
 
       @client = new PilightClient(@config)
-      
+
+      @framework.on 'after init', (context) =>
+        @client.connect()
+        return
+
       @client.on "config", onReceiveConfig = (json) =>
         config = json.config
         @pilightVersion = json.version?[0].split('.')
@@ -354,8 +359,6 @@ module.exports = (env) ->
         else
           reject new Error "Could not send request to pilight-daemon"
       )
-
-    createDevice: (config) =>
 
   plugin = new PilightPlugin
 
