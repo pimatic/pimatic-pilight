@@ -5,6 +5,7 @@ module.exports = (env) ->
   proxyquire = env.require 'proxyquire'
   Promise = env.require 'bluebird'
   declapi = env.require 'decl-api'
+  events = require 'events'
 
   describe "pimatic-pilight", ->
 
@@ -21,7 +22,7 @@ module.exports = (env) ->
 
     pilightPlugin = require('pimatic-pilight') env
 
-    framework = {}
+    framework = new events.EventEmitter()
     framework.deviceManager = {
       deviceClasses: {}
       registerDeviceClass: (name, op) -> @deviceClasses[name] = op
@@ -57,6 +58,7 @@ module.exports = (env) ->
             port: 123
           });
           pilightPlugin.init(null, framework, pluginConfig)
+          framework.emit 'after init', {}
           assert env.test.net.connectCalled
           
         it "should send welcome", ->
