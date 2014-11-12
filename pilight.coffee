@@ -10,7 +10,7 @@ module.exports = (env) ->
   net = env.test?.net or require("net")
   SSDP = env.SSDP or require("node-ssdp-lite")
 
-  PilightDevieTypes = {
+  PilightDeviceTypes = {
     RAW: 0
     SWITCH: 1
     DIMMER: 2
@@ -20,7 +20,7 @@ module.exports = (env) ->
     CONTACT: 6
     PENDINGSW: 7
     DATETIME: 8
-    XMBC: 9
+    XBMC: 9
     LIRC: 10
     WEBCAM: 11
   }
@@ -257,7 +257,7 @@ module.exports = (env) ->
 
     handleDeviceInConfig: (id, deviceProbs) =>
       getClassFromType = (deviceProbs) =>
-        PDT = PilightDevieTypes
+        PDT = PilightDeviceTypes
         switch deviceProbs.type
           when PDT.SWITCH, PDT.CONTACT, PDT.RELAY
             isContact = (
@@ -288,7 +288,7 @@ module.exports = (env) ->
       }
       # do some remapping for properites:
       # http://wiki.pilight.org/doku.php/changes_features_fixes?rev=1396735707
-      PDT = PilightDevieTypes
+      PDT = PilightDeviceTypes
       switch deviceProbs.type
         when PDT.WEATHER
           # Temperature devices:
