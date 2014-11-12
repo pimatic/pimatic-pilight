@@ -10,7 +10,7 @@ module.exports = (env) ->
   net = env.test?.net or require("net")
   SSDP = env.SSDP or require("node-ssdp-lite")
 
-  PilightDevieTypes = {
+  PilightDeviceTypes = {
     RAW: 0
     SWITCH: 1
     DIMMER: 2
@@ -20,7 +20,7 @@ module.exports = (env) ->
     CONTACT: 6
     PENDINGSW: 7
     DATETIME: 8
-    XMBC: 9
+    XBMC: 9
     LIRC: 10
     WEBCAM: 11
   }
@@ -245,7 +245,8 @@ module.exports = (env) ->
         PilightDimmer, 
         PilightTemperatureSensor, 
         PilightShutter, 
-        PilightContact
+        PilightContact,
+        PilightXbmc
       ]
 
       for Cl in deviceClasses
@@ -255,9 +256,11 @@ module.exports = (env) ->
             createCallback: (config) => new Cl(config)
           })
 
+      @framework.ruleManager.addPredicateProvider(new MediaPlayerPredicateProvider(@framework))
+
     handleDeviceInConfig: (id, deviceProbs) =>
       getClassFromType = (deviceProbs) =>
-        PDT = PilightDevieTypes
+        PDT = PilightDeviceTypes
         switch deviceProbs.type
           when PDT.SWITCH, PDT.CONTACT, PDT.RELAY
             isContact = (
@@ -271,6 +274,7 @@ module.exports = (env) ->
           when PDT.DIMMER then PilightDimmer
           when PDT.WEATHER then PilightTemperatureSensor
           when PDT.SCREEN then PilightShutter
+          when PDT.XBMC then PilightXbmc
           else null
 
       Class = getClassFromType deviceProbs
@@ -288,7 +292,7 @@ module.exports = (env) ->
       }
       # do some remapping for properites:
       # http://wiki.pilight.org/doku.php/changes_features_fixes?rev=1396735707
-      PDT = PilightDevieTypes
+      PDT = PilightDeviceTypes
       switch deviceProbs.type
         when PDT.WEATHER
           # Temperature devices:
@@ -357,6 +361,7 @@ module.exports = (env) ->
           else
             resolve()
         else
+          env.logger.error "Could not send request to pilight-daemon", jsonMsg
           reject new Error "Could not send request to pilight-daemon"
       )
 
@@ -695,9 +700,132 @@ module.exports = (env) ->
     getTemperature: -> Promise.resolve(@temperature)
     getHumidity: -> Promise.resolve(@humidity)
 
+  class PilightXbmc extends env.devices.Device
+    _mediaState: undefined
+
+    attributes:
+      mediaState:
+        description: "media state of XBMC"
+        type: t.boolean
+        labels: ['playing', 'paused']
+
+    getMediaState: -> Promise.resolve(@_mediaState)
+
+    constructor: (@config) ->
+      assert @config.id?
+      assert @config.name?
+      assert @config.location
+      assert @config.device?
+      assert (if @config.lastMediaState? then typeof @config.lastMediaState is "boolean" else true) 
+
+      @id = config.id
+      @name =  config.name
+      if config.lastMediaState?
+        @_mediaState = config.lastMediaState
+      super()
+      plugin.on "update #{@id}", (msg) =>
+        env.logger.debug "Received XBMC msg:", msg if @debug
+
+        mediaState = msg.values.action == 'play'
+        @_setMediaState mediaState
+        return
+
+    updateFromPilightConfig: (probs) ->
+      env.logger.debug "XBMC update from pilight:", probs if @debug
+      assert probs?
+      if @name isnt probs.name
+        @name = probs.name
+        @config.name = probs.name
+        plugin.framework.saveConfig()
+      mediaState = probs.action == 'play'
+      @_setMediaState mediaState
+
+    _setMediaState: (mediaState) ->
+      if mediaState is @_mediaState then return
+
+      @_mediaState = mediaState
+      @config.lastMediaState = mediaState
+      plugin.framework.saveConfig()
+
+      @emit "mediaState", mediaState
+
+  ###
+  The Media Player Predicate Provider
+  ----------------
+  Handles predicates of media devices like
+
+  * _device_ is playing
+  * _device_ is not playing
+  * _device_ is paused
+  * _device_ is stopped (TODO)
+  ####
+  class MediaPlayerPredicateProvider extends env.predicates.PredicateProvider
+    M = env.matcher
+
+    constructor: (@framework) ->
+
+    parsePredicate: (input, context) ->
+
+      mediaDevices = _(@framework.deviceManager.devices).values()
+        .filter((device) => device.hasAttribute( 'mediaState')).value()
+
+      device = null
+      negated = null
+      match = null
+
+      stateAcFilter = (v) => v.trim() isnt 'not playing'
+
+      M(input, context)
+        .matchDevice(mediaDevices, (next, d) =>
+          next.match([' is', ' reports', ' signals'])
+            .match([' playing', ' paused', ' not playing'], {acFilter: stateAcFilter}, (m, s) =>
+              # Already had a match with another device?
+              if device? and device.id isnt d.id
+                context?.addError(""""#{input.trim()}" is ambiguous.""")
+                return
+              device = d
+              negated = (s.trim() isnt "playing") 
+              match = m.getFullMatch()
+            )
+      )
+      
+      if match?
+        assert device?
+        assert negated?
+        assert typeof match is "string"
+        return {
+          token: match
+          nextInput: input.substring(match.length)
+          predicateHandler: new MediaPlayerPredicateHandler(device, negated)
+        }
+      else
+        return null
+
+  class MediaPlayerPredicateHandler extends env.predicates.PredicateHandler
+
+    constructor: (@device, @negated) ->
+
+    setup: ->
+      @mediaListener = (p) =>
+        @emit 'change', (if @negated then not p else p)
+      @device.on 'mediaState', @mediaListener
+      super()
+
+    getValue: ->
+      return @device.getUpdatedAttributeValue('mediaState').then(
+        (p) => (if @negated then not p else p)
+      )
+
+    destroy: ->
+      @device.removeListener "mediaState", @mediaListener
+      super()
+
+    getType: -> 'mediaState'
+
   # For testing...
   plugin.PilightSwitch = PilightSwitch
   plugin.PilightDimmer = PilightDimmer
   plugin.PilightTemperatureSensor = PilightTemperatureSensor
 
   return plugin
+

@@ -166,4 +166,30 @@ module.exports = {
         options:
           hidden: yes
   }
+  PilightXbmc: {
+    title: "PilightXbmc device config schemas"
+    type: "object"
+    extensions: ["xLink"]
+    properties:
+      inPilightConfig:
+        description: ""
+        type: "boolean"
+        options:
+          hidden: yes
+      location:
+        description: ""
+        type: "string"
+        options:
+          hidden: yes
+      device:
+        description: ""
+        type: "string"
+        options:
+          hidden: yes
+      lastMediaState:
+        description: ""
+        type: "boolean"
+        options:
+          hidden: yes
+  }
 }
