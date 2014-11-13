@@ -706,8 +706,8 @@ module.exports = (env) ->
     attributes:
       mediaState:
         description: "media state of XBMC"
-        type: t.boolean
-        labels: ['playing', 'paused']
+        type: t.string
+        labels: ['playing', 'paused', 'stopped']
 
     getMediaState: -> Promise.resolve(@_mediaState)
 
@@ -716,7 +716,8 @@ module.exports = (env) ->
       assert @config.name?
       assert @config.location
       assert @config.device?
-      assert (if @config.lastMediaState? then typeof @config.lastMediaState is "boolean" else true) 
+      assert @config.lastMediaState
+      #assert (if @config.lastMediaState? then typeof @config.lastMediaState is "string" else true) 
 
       @id = config.id
       @name =  config.name
@@ -724,20 +725,30 @@ module.exports = (env) ->
         @_mediaState = config.lastMediaState
       super()
       plugin.on "update #{@id}", (msg) =>
-        env.logger.debug "Received XBMC msg:", msg if @debug
+        env.logger.debug "Received XBMC msg:", msg
 
-        mediaState = msg.values.action == 'play'
+        mediaState = switch
+          when msg.values.action == 'play' then 'playing'
+          when msg.values.action == 'pause' then 'paused'
+          when msg.values.meida  == 'none' then 'stopped'
+          else 'stopped'
+		
         @_setMediaState mediaState
         return
 
     updateFromPilightConfig: (probs) ->
-      env.logger.debug "XBMC update from pilight:", probs if @debug
+      env.logger.debug "XBMC update from pilight:", probs
       assert probs?
       if @name isnt probs.name
         @name = probs.name
         @config.name = probs.name
         plugin.framework.saveConfig()
-      mediaState = probs.action == 'play'
+
+      mediaState = switch
+        when probs.action == 'play' then 'playing'
+        when probs.action == 'pause' then 'paused'
+        when probs.meida  == 'none' then 'stopped'
+        else 'stopped'
       @_setMediaState mediaState
 
     _setMediaState: (mediaState) ->
@@ -778,7 +789,7 @@ module.exports = (env) ->
       M(input, context)
         .matchDevice(mediaDevices, (next, d) =>
           next.match([' is', ' reports', ' signals'])
-            .match([' playing', ' paused', ' not playing'], {acFilter: stateAcFilter}, (m, s) =>
+            .match([' playing', ' paused', ' stopped', ' not playing'], {acFilter: stateAcFilter}, (m, s) =>
               # Already had a match with another device?
               if device? and device.id isnt d.id
                 context?.addError(""""#{input.trim()}" is ambiguous.""")
