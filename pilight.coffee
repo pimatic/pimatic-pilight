@@ -1,3 +1,5 @@
+String::endsWith   ?= (s) -> s is '' or @[-s.length..] is s
+
 module.exports = (env) ->
   util = require 'util'
 
@@ -763,12 +765,11 @@ module.exports = (env) ->
   ###
   The Media Player Predicate Provider
   ----------------
-  Handles predicates of media devices like
+  Handles predicates of media devices
 
-  * _device_ is playing
-  * _device_ is not playing
-  * _device_ is paused
-  * _device_ is stopped (TODO)
+  * _device_ is (not) playing
+  * _device_ is (not) paused
+  * _device_ is (not) stopped
   ####
   class MediaPlayerPredicateProvider extends env.predicates.PredicateProvider
     M = env.matcher
@@ -781,23 +782,26 @@ module.exports = (env) ->
         .filter((device) => device.hasAttribute( 'mediaState')).value()
 
       device = null
+      state = null
       negated = null
       match = null
 
-      stateAcFilter = (v) => v.trim() isnt 'not playing'
+      states = [' playing', ' paused', ' stopped']
 
       M(input, context)
         .matchDevice(mediaDevices, (next, d) =>
           next.match([' is', ' reports', ' signals'])
-            .match([' playing', ' paused', ' stopped', ' not playing'], {acFilter: stateAcFilter}, (m, s) =>
-              # Already had a match with another device?
-              if device? and device.id isnt d.id
-                context?.addError(""""#{input.trim()}" is ambiguous.""")
-                return
-              device = d
-              negated = (s.trim() isnt "playing") 
-              match = m.getFullMatch()
-            )
+            .match([' not'], {optional: true})
+              .match([' playing', ' paused', ' stopped'], (m, s) =>
+                # Already had a match with another device?
+                if device? and device.id isnt d.id
+                  context?.addError(""""#{input.trim()}" is ambiguous.""")
+                  return
+                device = d
+                state = s.trim()
+                negated = (m.prevInput.endsWith("is not"+s)) 
+                match = m.getFullMatch()
+              )
       )
       
       if match?
@@ -807,31 +811,37 @@ module.exports = (env) ->
         return {
           token: match
           nextInput: input.substring(match.length)
-          predicateHandler: new MediaPlayerPredicateHandler(device, negated)
+          predicateHandler: new MediaPlayerPredicateHandler(device, state, negated)
         }
       else
         return null
 
   class MediaPlayerPredicateHandler extends env.predicates.PredicateHandler
 
-    constructor: (@device, @negated) ->
+    constructor: (@device, @state, @negated) ->
 
     setup: ->
       @mediaListener = (p) =>
-        @emit 'change', (if @negated then not p else p)
+        p = p.trim()
+        @emit 'change', ((p is @state) isnt @negated)
       @device.on 'mediaState', @mediaListener
       super()
 
     getValue: ->
-      return @device.getUpdatedAttributeValue('mediaState').then(
-        (p) => (if @negated then not p else p)
-      )
+      value = @_evaluate()
+      #env.logger.debug('MediaPlayerPredicateProvider getValue: ', value)
+      return value
 
     destroy: ->
       @device.removeListener "mediaState", @mediaListener
       super()
 
     getType: -> 'mediaState'
+
+    _evaluate: ->
+      @device.getUpdatedAttributeValue('mediaState').then( (val) =>
+        return ((val is @state) isnt @negated)
+      )
 
   # For testing...
   plugin.PilightSwitch = PilightSwitch
