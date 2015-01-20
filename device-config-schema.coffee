@@ -188,7 +188,8 @@ module.exports = {
           hidden: yes
       lastMediaState:
         description: ""
-        type: "boolean"
+        type: "string"
+        default: "stopped"
         options:
           hidden: yes
   }

@@ -1,3 +1,5 @@
+String::endsWith   ?= (s) -> s is '' or @[-s.length..] is s
+
 module.exports = (env) ->
   util = require 'util'
 
@@ -706,8 +708,8 @@ module.exports = (env) ->
     attributes:
       mediaState:
         description: "media state of XBMC"
-        type: t.boolean
-        labels: ['playing', 'paused']
+        type: t.string
+        labels: ['playing', 'paused', 'stopped']
 
     getMediaState: -> Promise.resolve(@_mediaState)
 
@@ -716,7 +718,8 @@ module.exports = (env) ->
       assert @config.name?
       assert @config.location
       assert @config.device?
-      assert (if @config.lastMediaState? then typeof @config.lastMediaState is "boolean" else true) 
+      assert @config.lastMediaState
+      #assert (if @config.lastMediaState? then typeof @config.lastMediaState is "string" else true) 
 
       @id = config.id
       @name =  config.name
@@ -724,20 +727,30 @@ module.exports = (env) ->
         @_mediaState = config.lastMediaState
       super()
       plugin.on "update #{@id}", (msg) =>
-        env.logger.debug "Received XBMC msg:", msg if @debug
+        env.logger.debug "Received XBMC msg:", msg
 
-        mediaState = msg.values.action == 'play'
+        mediaState = switch
+          when msg.values.action == 'play' then 'playing'
+          when msg.values.action == 'pause' then 'paused'
+          when msg.values.meida  == 'none' then 'stopped'
+          else 'stopped'
+		
         @_setMediaState mediaState
         return
 
     updateFromPilightConfig: (probs) ->
-      env.logger.debug "XBMC update from pilight:", probs if @debug
+      env.logger.debug "XBMC update from pilight:", probs
       assert probs?
       if @name isnt probs.name
         @name = probs.name
         @config.name = probs.name
         plugin.framework.saveConfig()
-      mediaState = probs.action == 'play'
+
+      mediaState = switch
+        when probs.action == 'play' then 'playing'
+        when probs.action == 'pause' then 'paused'
+        when probs.meida  == 'none' then 'stopped'
+        else 'stopped'
       @_setMediaState mediaState
 
     _setMediaState: (mediaState) ->
@@ -752,12 +765,11 @@ module.exports = (env) ->
   ###
   The Media Player Predicate Provider
   ----------------
-  Handles predicates of media devices like
+  Handles predicates of media devices
 
-  * _device_ is playing
-  * _device_ is not playing
-  * _device_ is paused
-  * _device_ is stopped (TODO)
+  * _device_ is (not) playing
+  * _device_ is (not) paused
+  * _device_ is (not) stopped
   ####
   class MediaPlayerPredicateProvider extends env.predicates.PredicateProvider
     M = env.matcher
@@ -770,23 +782,26 @@ module.exports = (env) ->
         .filter((device) => device.hasAttribute( 'mediaState')).value()
 
       device = null
+      state = null
       negated = null
       match = null
 
-      stateAcFilter = (v) => v.trim() isnt 'not playing'
+      states = [' playing', ' paused', ' stopped']
 
       M(input, context)
         .matchDevice(mediaDevices, (next, d) =>
           next.match([' is', ' reports', ' signals'])
-            .match([' playing', ' paused', ' not playing'], {acFilter: stateAcFilter}, (m, s) =>
-              # Already had a match with another device?
-              if device? and device.id isnt d.id
-                context?.addError(""""#{input.trim()}" is ambiguous.""")
-                return
-              device = d
-              negated = (s.trim() isnt "playing") 
-              match = m.getFullMatch()
-            )
+            .match([' not'], {optional: true})
+              .match([' playing', ' paused', ' stopped'], (m, s) =>
+                # Already had a match with another device?
+                if device? and device.id isnt d.id
+                  context?.addError(""""#{input.trim()}" is ambiguous.""")
+                  return
+                device = d
+                state = s.trim()
+                negated = (m.prevInput.endsWith("is not"+s)) 
+                match = m.getFullMatch()
+              )
       )
       
       if match?
@@ -796,31 +811,37 @@ module.exports = (env) ->
         return {
           token: match
           nextInput: input.substring(match.length)
-          predicateHandler: new MediaPlayerPredicateHandler(device, negated)
+          predicateHandler: new MediaPlayerPredicateHandler(device, state, negated)
         }
       else
         return null
 
   class MediaPlayerPredicateHandler extends env.predicates.PredicateHandler
 
-    constructor: (@device, @negated) ->
+    constructor: (@device, @state, @negated) ->
 
     setup: ->
       @mediaListener = (p) =>
-        @emit 'change', (if @negated then not p else p)
+        p = p.trim()
+        @emit 'change', ((p is @state) isnt @negated)
       @device.on 'mediaState', @mediaListener
       super()
 
     getValue: ->
-      return @device.getUpdatedAttributeValue('mediaState').then(
-        (p) => (if @negated then not p else p)
-      )
+      value = @_evaluate()
+      #env.logger.debug('MediaPlayerPredicateProvider getValue: ', value)
+      return value
 
     destroy: ->
       @device.removeListener "mediaState", @mediaListener
       super()
 
     getType: -> 'mediaState'
+
+    _evaluate: ->
+      @device.getUpdatedAttributeValue('mediaState').then( (val) =>
+        return ((val is @state) isnt @negated)
+      )
 
   # For testing...
   plugin.PilightSwitch = PilightSwitch
