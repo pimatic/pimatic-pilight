@@ -709,7 +709,7 @@ module.exports = (env) ->
       mediaState:
         description: "media state of XBMC"
         type: t.string
-        labels: ['playing', 'paused', 'stopped']
+        enum: ['playing', 'paused', 'stopped']
 
     getMediaState: -> Promise.resolve(@_mediaState)
 
