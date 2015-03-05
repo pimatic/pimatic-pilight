@@ -1,6 +1,15 @@
 pimatic pilight plugin
 ======================
 
+Deprecated notice
+-----------------
+
+**The plugin currently works only with the (outdated) pilight v5. We are looking for a new maintainer for the plugin, because 
+the [homeduino plugin](https://github.com/pimatic/pimatic-homeduino) replaced most of pilights functionality and we will put our effort into this new standalone solution.**
+
+About
+-----------------
+
 Plugin for the integration of [pilight](https://github.com/pilight/pilight) to control 433Mhz switches 
 and dimmers and get informations from 433Mhz weather stations. See the project page for a list of 
 [supported devices](http://wiki.pilight.org/doku.php/protocols). The pilight-daemon must be running 
