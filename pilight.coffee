@@ -147,7 +147,7 @@ module.exports = (env) ->
         connectDirectly()
 
     sendWelcome: ->
-      @send { message: "client gui" }
+      @send {"action":"identify","options":{"stats":1,"config":1},"uuid":"0000-d0-63-00-000000"}
 
     send: (jsonMsg) ->
       env.logger.debug("pilight send: ", JSON.stringify(jsonMsg, null, " ")) if @debug
@@ -161,7 +161,7 @@ module.exports = (env) ->
       env.logger.debug("pilight received: ", JSON.stringify(jsonMsg, null, " ")) if @debug
       switch 
         when jsonMsg.message is "accept client"
-          @send { message: "request config" }
+          @send { action: "request config" }
         when jsonMsg.config?
           @emit "config", jsonMsg
         when jsonMsg.origin?
@@ -220,23 +220,28 @@ module.exports = (env) ->
         config = json.config
         @pilightVersion = json.version?[0].split('.')
         # iterate ´config = { living: { name: "Living", ... }, ...}´
-        for location, devices of config
+        #for location, devices of config
           #   location = "tv"
           #   device = { name: "Living", order: "1", protocol: [ "kaku_switch" ], ... }
           # iterate ´devices = { tv: { name: "TV", ...}, ... }´
-          for device, deviceProbs of devices
+        for device, deviceProbs of json.config.devices
+            env.logger.info "config device: ", device
             if typeof deviceProbs is "object"
-              id = "pilight-#{location}-#{device}"
-              deviceProbs.location = location
+              id = "pilight-#{device}"
+              #deviceProbs.location = location
               deviceProbs.device = device
               @handleDeviceInConfig(id, deviceProbs)
         return
 
       @client.on "update", onReceivedOrigin = (jsonMsg) =>
-        if jsonMsg.origin is 'config'
-          for location, devices of jsonMsg.devices
-            for device in devices
-              id = "pilight-#{location}-#{device}"  
+        env.logger.info "receivedOrigin: #{JSON.stringify(jsonMsg)}" if @debug
+        if jsonMsg.origin is 'update'
+          #for location, devices of jsonMsg.devices
+          for device of jsonMsg.devices
+              #for device in devices
+              id = "pilight-#{jsonMsg.devices}"  
+              env.logger.info "found device #{jsonMsg.devices}" if @debug
+              #id = "pilight-#{location}-#{device}"  
               @emit "update #{id}", jsonMsg
         return
 
@@ -395,7 +400,7 @@ module.exports = (env) ->
     # Run the pilight-send executable.
     changeStateTo: (state) ->
       jsonMsg = {
-        message: "send"
+        action: "control"
         code:
           location: @config.location
           device: @config.device
