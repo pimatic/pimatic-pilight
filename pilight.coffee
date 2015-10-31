@@ -147,7 +147,7 @@ module.exports = (env) ->
         connectDirectly()
 
     sendWelcome: ->
-      @send {"action":"identify","options":{"stats":1,"config":1},"uuid":"0000-d0-63-00-000000"}
+      @send {"action":"identify","options":{"config":1},"uuid":"0000-d0-63-00-000000"}
       @send {"action":"request config"}
 
     send: (jsonMsg) ->
@@ -217,13 +217,15 @@ module.exports = (env) ->
 
       @client.on "config", onReceiveConfig = (json) =>
         config = json.config
+        PDT = PilightDeviceTypes
         @pilightVersion = json.version?[0].split('.')
         env.logger.info "config devices: ", json.config.devices if @debug
         for device, deviceProbs of json.config.devices
             env.logger.info "config device: ", device if @debug
             if typeof deviceProbs is "object"
               id = "pilight-#{device}"
-              env.logger.info "config id: ", id if @debug
+              env.logger.info "config id: ", id 
+              foundDeviceInGui = false
               env.logger.info "searching for name in gui = #{JSON.stringify(json.config.gui)}" if @debug
               for dev, jgui of json.config.gui
                 env.logger.info "checking #{dev} as #{JSON.stringify(jgui)}" if @debug
@@ -232,8 +234,11 @@ module.exports = (env) ->
                    deviceProbs.name = jgui.name
                    deviceProbs.type = jgui.type
                    deviceProbs.location = jgui.group[0]
+                   if deviceProbs.type isnt PDT.WEATHER and deviceProbs.type isnt PDT.DATETIME
+                      foundDeviceInGui = true
               deviceProbs.device = device
-              @handleDeviceInConfig(id, deviceProbs)
+              if foundDeviceInGui is true
+                 @handleDeviceInConfig(id, deviceProbs)
         return
 
       @client.on "update", onReceivedOrigin = (jsonMsg) =>
