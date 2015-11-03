@@ -147,7 +147,8 @@ module.exports = (env) ->
         connectDirectly()
 
     sendWelcome: ->
-      @send {"action":"identify","options":{"stats":1,"config":1},"uuid":"0000-d0-63-00-000000"}
+      @send {"action":"identify","options":{"config":1},"uuid":"0000-d0-63-00-000000"}
+      @send {"action":"request config"}
 
     send: (jsonMsg) ->
       env.logger.debug("pilight send: ", JSON.stringify(jsonMsg, null, " ")) if @debug
@@ -160,9 +161,7 @@ module.exports = (env) ->
     onReceive: (jsonMsg) ->
       env.logger.debug("pilight received: ", JSON.stringify(jsonMsg, null, " ")) if @debug
       switch 
-        when jsonMsg.message is "accept client"
-          @send { action: "request config" }
-        when jsonMsg.config?
+        when jsonMsg.message is "config"
           @emit "config", jsonMsg
         when jsonMsg.origin?
           @emit "update", jsonMsg
@@ -218,30 +217,36 @@ module.exports = (env) ->
 
       @client.on "config", onReceiveConfig = (json) =>
         config = json.config
+        PDT = PilightDeviceTypes
         @pilightVersion = json.version?[0].split('.')
-        # iterate ´config = { living: { name: "Living", ... }, ...}´
-        #for location, devices of config
-          #   location = "tv"
-          #   device = { name: "Living", order: "1", protocol: [ "kaku_switch" ], ... }
-          # iterate ´devices = { tv: { name: "TV", ...}, ... }´
+        env.logger.info "config devices: ", json.config.devices if @debug
         for device, deviceProbs of json.config.devices
-            env.logger.info "config device: ", device
+            env.logger.info "config device: ", device if @debug
             if typeof deviceProbs is "object"
               id = "pilight-#{device}"
-              #deviceProbs.location = location
+              env.logger.info "config id: ", id 
+              foundDeviceInGui = false
+              env.logger.info "searching for name in gui = #{JSON.stringify(json.config.gui)}" if @debug
+              for dev, jgui of json.config.gui
+                env.logger.info "checking #{dev} as #{JSON.stringify(jgui)}" if @debug
+                if dev is device
+                   env.logger.info "setting #{dev} #{jgui.name} #{jgui.type}" if @debug
+                   deviceProbs.name = jgui.name
+                   deviceProbs.type = jgui.type
+                   deviceProbs.location = jgui.group[0]
+                   if deviceProbs.type isnt PDT.WEATHER and deviceProbs.type isnt PDT.DATETIME
+                      foundDeviceInGui = true
               deviceProbs.device = device
-              @handleDeviceInConfig(id, deviceProbs)
+              if foundDeviceInGui is true
+                 @handleDeviceInConfig(id, deviceProbs)
         return
 
       @client.on "update", onReceivedOrigin = (jsonMsg) =>
         env.logger.info "receivedOrigin: #{JSON.stringify(jsonMsg)}" if @debug
         if jsonMsg.origin is 'update'
-          #for location, devices of jsonMsg.devices
           for device of jsonMsg.devices
-              #for device in devices
               id = "pilight-#{jsonMsg.devices}"  
               env.logger.info "found device #{jsonMsg.devices}" if @debug
-              #id = "pilight-#{location}-#{device}"  
               @emit "update #{id}", jsonMsg
         return
 
@@ -266,9 +271,10 @@ module.exports = (env) ->
       @framework.ruleManager.addPredicateProvider(new MediaPlayerPredicateProvider(@framework))
 
     handleDeviceInConfig: (id, deviceProbs) =>
-      getClassFromType = (deviceProbs) =>
+      env.logger.info "handleDeviceInConfig:", id, deviceProbs if @debug
+      getClassFromType = (deviceType) =>
         PDT = PilightDeviceTypes
-        switch deviceProbs.type
+        switch deviceType
           when PDT.SWITCH, PDT.CONTACT, PDT.RELAY
             isContact = (
               deviceProbs.settings?.states is "opened,closed" or 
@@ -284,7 +290,7 @@ module.exports = (env) ->
           when PDT.XBMC then PilightXbmc
           else null
 
-      Class = getClassFromType deviceProbs
+      Class = getClassFromType deviceProbs.type
       unless Class?
         env.logger.warn "Unimplemented pilight device type: #{deviceProbs.type}" 
         return
@@ -401,6 +407,7 @@ module.exports = (env) ->
     changeStateTo: (state) ->
       jsonMsg = {
         action: "control"
+        #message: "send"
         code:
           location: @config.location
           device: @config.device
