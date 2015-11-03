@@ -3,8 +3,11 @@ pimatic pilight plugin
 
 Deprecated notice
 -----------------
+**master branch** Works with pilight v7, but only switches are supported
 
-**The plugin currently works only with the (outdated) pilight v5. We are looking for a new maintainer for the plugin, because 
+**pilight5 branch** Fully support for the (outdated) pilight v5. 
+
+**We are looking for a new maintainer for the plugin, because 
 the [homeduino plugin](https://github.com/pimatic/pimatic-homeduino) replaced most of pilights functionality and we will put our effort into this new standalone solution.**
 
 About
