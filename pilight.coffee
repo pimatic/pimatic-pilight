@@ -407,7 +407,6 @@ module.exports = (env) ->
     changeStateTo: (state) ->
       jsonMsg = {
         action: "control"
-        #message: "send"
         code:
           location: @config.location
           device: @config.device
@@ -495,7 +494,7 @@ module.exports = (env) ->
     moveToPosition: (position) ->
       assert position in ['up', 'down']
       jsonMsg = {
-        message: "send"
+        action: "control"
         code:
           location: @config.location
           device: @config.device
@@ -508,7 +507,7 @@ module.exports = (env) ->
     stop: () ->
       if @_position is 'stopped' then return Promise.resolve()
       jsonMsg = {
-        message: "send"
+        action: "control"
         code:
           location: @config.location
           device: @config.device
@@ -565,7 +564,7 @@ module.exports = (env) ->
 
       implizitState = (if dimlevel > 0 then "on" else "off")
       jsonMsg = {
-        message: "send"
+        action: "control"
         code:
           location: @config.location
           device: @config.device
@@ -584,7 +583,7 @@ module.exports = (env) ->
     
       if implizitState isnt @_state
         jsonMsg = {
-          message: "send"
+          action: "control"
           code:
             location: @config.location
             device: @config.device
