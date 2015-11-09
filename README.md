@@ -3,7 +3,7 @@ pimatic pilight plugin
 
 Deprecated notice
 -----------------
-**master branch** Works with pilight v7, but only switches are supported
+**master branch** Works with pilight v7, but is only tested with switches.
 
 **pilight5 branch** Fully support for the (outdated) pilight v5. 
 
